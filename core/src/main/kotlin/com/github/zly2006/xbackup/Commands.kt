@@ -7,7 +7,9 @@ import com.github.zly2006.xbackup.Utils.send
 import com.github.zly2006.xbackup.Utils.setAutoSaving
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
+import com.mojang.brigadier.arguments.StringArgumentType
 import com.redenmc.bragadier.ktdsl.register
+import kotlinx.coroutines.runBlocking
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
@@ -32,25 +34,25 @@ object Commands {
         dispatcher.register {
             literal("xb") {
                 literal("create") {
+                    argument("comment", StringArgumentType.word()).executes {
+                        val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                        val comment = StringArgumentType.getString(it, "comment")
+                        XBackup.ensureNotBusy {
+                            it.source.server.setAutoSaving(false)
+                            it.source.server.save()
 
-                }.executes {
-                    val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                    XBackup.ensureNotBusy {
-                        it.source.server.setAutoSaving(false)
-                        it.source.server.save()
-
-                        val result = XBackup.service.createBackup(path) { true }
-                        it.source.send(
-                            Text.of(
-                                "Backup #${result.backId} finished, ${sizeToString(result.totalSize)} " +
-                                        "(${sizeToString(result.compressedSize)} after compression) " +
-                                        "+${sizeToString(result.addedSize)}"
+                            val result = XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
+                            it.source.send(
+                                Text.of(
+                                    "Backup #${result.backId} finished, ${sizeToString(result.totalSize)} " +
+                                            "(${sizeToString(result.compressedSize)} after compression) " +
+                                            "+${sizeToString(result.addedSize)}"
+                                )
                             )
-                        )
-
-                        it.source.server.setAutoSaving(true)
+                            it.source.server.setAutoSaving(true)
+                        }
+                        1
                     }
-                    1
                 }
                 literal("delete") {
 
@@ -60,11 +62,21 @@ object Commands {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
                         XBackup.ensureNotBusy {
+                            if (XBackup.service.getBackup(id) == null) {
+                                it.source.sendError(Text.of("Backup #$id not found"))
+                                return@ensureNotBusy
+                            }
                             try {
                                 it.source.server.setAutoSaving(false)
                                 it.source.server.prepareRestore("Restoring backup #$id")
 
-                                val result = XBackup.service.restore(id, path) { false }
+                                runBlocking {
+                                    XBackup.reason = "Auto-backup before restoring to #$id"
+                                    XBackup.service.createBackup(path, "Auto-backup before restoring to #$id") { true }
+                                    XBackup.reason = "Restoring backup #$id"
+                                    val result = XBackup.service.restore(id, path) { false }
+                                    XBackup.reason = "Restoring backup #$id finished, launching server"
+                                }
                             } finally {
                                 it.source.server.finishRestore()
                                 it.source.server.setAutoSaving(true)

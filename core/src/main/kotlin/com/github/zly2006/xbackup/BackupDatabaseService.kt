@@ -122,13 +122,13 @@ class BackupDatabaseService(
         )
     }
 
-    suspend fun createBackup(root: Path, predicate: (Path) -> Boolean): BackupResult {
+    suspend fun createBackup(root: Path, comment: String, predicate: (Path) -> Boolean): BackupResult {
         val backup = dbQuery {
             Backup.new {
                 size = 0
                 zippedSize = 0
                 created = System.currentTimeMillis()
-                comment = ""
+                this.comment = comment
             }
         }
         val timeStart = System.currentTimeMillis()
@@ -249,6 +249,10 @@ class BackupDatabaseService(
         }
     }
 
+    suspend fun getBackup(id: Int): Backup? = dbQuery {
+        Backup.findById(id)
+    }
+
     /**
      * Restore backup to target directory
      *
@@ -257,8 +261,8 @@ class BackupDatabaseService(
      * @param ignored Predicate to ignore files, this prevents files from being deleted,
      * usually should be opposite of the predicate used in [createBackup]
      */
-    fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) {
-        transaction {
+    suspend fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) {
+        dbQuery {
             val backup = Backup.findById(id) ?: error("Backup not found")
             val map = backup.entries.associateBy { it.path }
             for (it in target.toFile().walk()) {
@@ -275,25 +279,27 @@ class BackupDatabaseService(
                     it.deleteRecursively()
                 }
             }
-            map.forEach {
-                val path = target.resolve(it.key).normalize().createParentDirectories()
-                if (it.value.isDirectory) {
-                    path.toFile().mkdirs()
-                }
-                else {
-                    val blob = blobDir.resolve(it.value.hash.take(2)).resolve(it.value.hash.drop(2))
-                    if (it.value.gzip) {
-                        GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
-                            Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING)
-                        }
+            map.map {
+                this@BackupDatabaseService.async {
+                    val path = target.resolve(it.key).normalize().createParentDirectories()
+                    if (it.value.isDirectory) {
+                        path.toFile().mkdirs()
                     }
                     else {
-                        Files.copy(blob, path, StandardCopyOption.REPLACE_EXISTING)
+                        val blob = blobDir.resolve(it.value.hash.take(2)).resolve(it.value.hash.drop(2))
+                        if (it.value.gzip) {
+                            GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
+                                Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING)
+                            }
+                        }
+                        else {
+                            Files.copy(blob, path, StandardCopyOption.REPLACE_EXISTING)
+                        }
+                        require(path.fileSize() == it.value.size)
+                        path.toFile().setLastModified(it.value.lastModified)
                     }
-                    require(path.fileSize() == it.value.size)
-                    path.toFile().setLastModified(it.value.lastModified)
                 }
-            }
+            }.awaitAll()
         }
     }
 
