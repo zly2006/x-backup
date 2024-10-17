@@ -1,6 +1,7 @@
 package com.github.zly2006.xbackup
 
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -48,7 +49,7 @@ object XBackup : ModInitializer {
             throw SimpleCommandExceptionType(Text.of("Backup is already running")).create()
         }
         backupRunning = true
-        service.launch {
+        service.launch(server.asCoroutineDispatcher()) {
             try {
                 block()
             } finally {

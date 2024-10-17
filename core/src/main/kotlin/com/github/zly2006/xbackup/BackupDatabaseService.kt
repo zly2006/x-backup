@@ -18,6 +18,7 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.createParentDirectories
@@ -256,13 +257,16 @@ class BackupDatabaseService(
      * @param ignored Predicate to ignore files, this prevents files from being deleted,
      * usually should be opposite of the predicate used in [createBackup]
      */
-    suspend fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) {
-        dbQuery {
+    fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) {
+        transaction {
             val backup = Backup.findById(id) ?: error("Backup not found")
             val map = backup.entries.associateBy { it.path }
-            target.toFile().walk().forEach {
+            for (it in target.toFile().walk()) {
                 val path = target.normalize().relativize(it.toPath()).normalize()
-                if (ignored(path)) return@forEach
+                if (it.name == "x_backup.db")
+                    continue
+                if (ignored(path))
+                    continue
                 val entry = map[path.toString()]
                 if (entry == null) {
                     it.deleteRecursively()
@@ -272,22 +276,21 @@ class BackupDatabaseService(
                 }
             }
             map.forEach {
-                val path = target.resolve(it.key).createParentDirectories()
+                val path = target.resolve(it.key).normalize().createParentDirectories()
                 if (it.value.isDirectory) {
                     path.toFile().mkdirs()
                 }
                 else {
                     val blob = blobDir.resolve(it.value.hash.take(2)).resolve(it.value.hash.drop(2))
                     if (it.value.gzip) {
-                        blob.toFile().inputStream().buffered().use { input ->
-                            GZIPOutputStream(path.toFile().outputStream().buffered()).use { output ->
-                                input.copyTo(output)
-                            }
+                        GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
+                            Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING)
                         }
                     }
                     else {
                         Files.copy(blob, path, StandardCopyOption.REPLACE_EXISTING)
                     }
+                    require(path.fileSize() == it.value.size)
                     path.toFile().setLastModified(it.value.lastModified)
                 }
             }

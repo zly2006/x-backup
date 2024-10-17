@@ -60,13 +60,15 @@ object Commands {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
                         XBackup.ensureNotBusy {
-                            it.source.server.setAutoSaving(false)
-                            it.source.server.prepareRestore("Restoring backup #$id")
+                            try {
+                                it.source.server.setAutoSaving(false)
+                                it.source.server.prepareRestore("Restoring backup #$id")
 
-                            val result = XBackup.service.restore(id, path) { false }
-
-                            it.source.server.finishRestore()
-                            it.source.server.setAutoSaving(true)
+                                val result = XBackup.service.restore(id, path) { false }
+                            } finally {
+                                it.source.server.finishRestore()
+                                it.source.server.setAutoSaving(true)
+                            }
                         }
                         1
                     }
