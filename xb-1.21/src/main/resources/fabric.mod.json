@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "x_backup",
-  "version": "${version}",
+  "id": "x_backup_${mc}",
+  "version": "${version}_${mc}",
   "name": "X backup",
   "description": "",
   "authors": [],
@@ -12,10 +12,11 @@
   "entrypoints": {
   },
   "mixins": [
+    "x_backup.121.mixins.json"
   ],
   "depends": {
     "fabricloader": "*",
     "fabric-language-kotlin": "*",
-    "minecraft": ">=1.18"
+    "minecraft": "~1.21"
   }
 }

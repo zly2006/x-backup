@@ -13,9 +13,6 @@ version = project.property("mod_version") as String
 group = project.property("maven_group") as String
 val exposed_version: String by project
 
-base {
-    archivesName.set(project.property("archives_base_name") as String)
-}
 
 val targetJavaVersion = 21
 java {
@@ -26,13 +23,109 @@ java {
     withSourcesJar()
 }
 
-loom {
-    splitEnvironmentSourceSets()
+allprojects {
+    apply(plugin = "fabric-loom")
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
 
-    mods {
-        register("x_backup") {
-            sourceSet("main")
-            sourceSet("client")
+    base {
+        archivesName.set(project.property("archives_base_name") as String + project.name)
+    }
+
+    repositories {
+        maven {
+            url = uri("https://api.modrinth.com/maven")
+            content {
+                includeGroup("maven.modrinth")
+            }
+        }
+        maven {
+            url = uri("https://cursemaven.com")
+            content {
+                includeGroup("curse.maven")
+            }
+        }
+
+        maven {
+            url = uri("https://maven.terraformersmc.com/releases")
+        }
+        maven {
+            url = uri("https://maven.shedaniel.me/")
+        }
+        maven {
+            url = uri("https://jitpack.io/")
+        }
+        mavenCentral()
+    }
+
+    dependencies {
+        if (project.name.startsWith("xb-")) {
+            // compatibility subprojects
+            api(project(":core", configuration = "namedElements"))
+        }
+        modImplementation("net.fabricmc:fabric-loader:${project.property("loader_version")}")
+        modImplementation("net.fabricmc:fabric-language-kotlin:${project.property("kotlin_loader_version")}")
+
+        minecraft("com.mojang:minecraft:${project.property("minecraft_version")}")
+        mappings("net.fabricmc:yarn:${project.property("yarn_mappings")}:v2")
+        modImplementation("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_version")}")
+
+        implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
+        implementation("org.jetbrains.exposed:exposed-dao:$exposed_version")
+        implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
+        implementation("org.xerial:sqlite-jdbc:3.46.0.0")
+    }
+
+    loom {
+        runs {
+            named("client") {
+                programArg("--username")
+                programArg("Dev")
+            }
+        }
+    }
+
+
+    tasks {
+        processResources {
+//            inputs.property("version", rootProject.version)
+//            inputs.property("minecraft_version", project.property("minecraft_version"))
+//            inputs.property("loader_version", project.property("loader_version"))
+            filteringCharset = "UTF-8"
+
+            println("processResources, project: ${project.name}, mc: ${project.property("minecraft_version")}")
+
+            filesMatching("fabric.mod.json") {
+                expand(
+                    "version" to rootProject.version,
+                    "mc" to project.property("minecraft_version").toString().replace(".", "_"),
+                    "minecraft_version" to project.property("minecraft_version"),
+                    "loader_version" to project.property("loader_version"),
+                    "kotlin_loader_version" to project.property("kotlin_loader_version")
+                )
+            }
+        }
+
+        withType<JavaCompile>().configureEach {
+            options.encoding = "UTF-8"
+            options.release.set(targetJavaVersion)
+        }
+
+        jar {
+            from(rootProject.file("LICENSE"))
+        }
+    }
+
+    java {
+        withSourcesJar()
+    }
+
+}
+
+subprojects {
+    configurations {
+        modRuntimeOnly {
+            exclude(module = "fabric-api-base")
         }
     }
 }
@@ -46,15 +139,15 @@ repositories {
 }
 
 dependencies {
-    // To change the versions see the gradle.properties file
-    minecraft("com.mojang:minecraft:${project.property("minecraft_version")}")
-    mappings("net.fabricmc:yarn:${project.property("yarn_mappings")}:v2")
-    modImplementation("net.fabricmc:fabric-loader:${project.property("loader_version")}")
-    modImplementation("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_version")}")
-    modImplementation("net.fabricmc:fabric-language-kotlin:${project.property("kotlin_loader_version")}")
+    include(project(":xb-1.21"))
+    include(project(":xb-1.20"))
+
+    runtimeOnly(project(":xb-1.21", configuration = "namedElements"))
+    runtimeOnly(project(":xb-1.20", configuration = "namedElements"))
+
 
     fun DependencyHandler.shadowImpl(
-        dependency: String
+        dependency: String,
     ): Dependency? {
         return shadow(implementation(dependency)!!)
     }
@@ -66,6 +159,11 @@ dependencies {
 }
 
 tasks {
+    processResources {
+//        from("${rootDir}/assets/icon.png") {
+//            into("assets/bettersleeping/")
+//        }
+    }
     shadowJar {
         from("LICENSE")
 
@@ -89,31 +187,6 @@ tasks {
         dependsOn(shadowJar)
         input.set(shadowJar.get().archiveFile)
     }
-}
-
-tasks.processResources {
-    inputs.property("version", project.version)
-    inputs.property("minecraft_version", project.property("minecraft_version"))
-    inputs.property("loader_version", project.property("loader_version"))
-    filteringCharset = "UTF-8"
-
-    filesMatching("fabric.mod.json") {
-        expand(
-            "version" to project.version,
-            "minecraft_version" to project.property("minecraft_version"),
-            "loader_version" to project.property("loader_version"),
-            "kotlin_loader_version" to project.property("kotlin_loader_version")
-        )
-    }
-}
-
-tasks.withType<JavaCompile>().configureEach {
-    // ensure that the encoding is set to UTF-8, no matter what the system default is
-    // this fixes some edge cases with special characters not displaying correctly
-    // see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-    // If Javadoc is generated, this must be specified in that task too.
-    options.encoding = "UTF-8"
-    options.release.set(targetJavaVersion)
 }
 
 tasks.withType<KotlinCompile>().configureEach {

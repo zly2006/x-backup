@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "x_backup",
+  "id": "x_backup_core",
   "version": "${version}",
-  "name": "X backup",
+  "name": "X backup Core",
   "description": "",
   "authors": [],
   "contact": {},
@@ -10,6 +10,14 @@
   "icon": "assets/x_backup/icon.png",
   "environment": "*",
   "entrypoints": {
+    "client": [
+    ],
+    "main": [
+      {
+        "adapter": "kotlin",
+        "value": "com.github.zly2006.xbackup.XBackup"
+      }
+    ]
   },
   "mixins": [
   ],
