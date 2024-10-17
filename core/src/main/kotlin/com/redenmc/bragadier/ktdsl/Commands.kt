@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.ArgumentType
 import com.mojang.brigadier.builder.ArgumentBuilder
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.builder.RequiredArgumentBuilder
+import com.mojang.brigadier.context.CommandContext
 
 @Target(AnnotationTarget.CLASS, AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.FUNCTION)
 @DslMarker
@@ -26,6 +27,11 @@ open class RootBuilderScope<S>(
 
 @CommandBuilder
 class BuilderScope<S>: RootBuilderScope<S>(mutableListOf()) {
+    var executes: ((CommandContext<S>) -> Int)? = null
+    @CommandBuilder
+    fun executes(function: (CommandContext<S>) -> Int) {
+        executes = function
+    }
     @CommandBuilder
     fun <T> argument(name: String, type: ArgumentType<T>) = RequiredArgumentBuilder.argument<S, T>(name, type)!!
         .also(requireNotNull(builders) { "Command already built" }::add)
@@ -49,6 +55,9 @@ inline fun <S> ArgumentBuilder<S, *>.then(function: BuilderScope<S>.() -> Unit) 
     function(scope)
     scope.builders!!.forEach(this::then)
     scope.builders = null
+    if (scope.executes != null) {
+        this.executes { scope.executes!!(it) }
+    }
 }
 
 @CommandBuilder

@@ -2,6 +2,7 @@ package com.github.zly2006.xbackup.multi
 
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
+import net.minecraft.text.MutableText
 import net.minecraft.text.Text
 
 interface MultiVersioned {

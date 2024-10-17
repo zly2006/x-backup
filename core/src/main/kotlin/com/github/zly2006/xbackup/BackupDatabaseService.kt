@@ -113,13 +113,24 @@ class BackupDatabaseService(
             val entries: List<BackupEntry.Model>,
         )
 
-        fun toModel() = Model(
-            size,
-            zippedSize,
-            created,
-            comment,
-            entries.map { it.toModel() }.toList()
-        )
+        suspend fun toModel() = newSuspendedTransaction(db = db) {
+            Model(
+                size,
+                zippedSize,
+                created,
+                comment,
+                entries.map {
+                    BackupEntry.Model(
+                        it.path,
+                        it.size,
+                        it.lastModified,
+                        it.isDirectory,
+                        it.hash,
+                        it.gzip
+                    )
+                }.toList()
+            )
+        }
     }
 
     suspend fun createBackup(root: Path, comment: String, predicate: (Path) -> Boolean): BackupResult {
@@ -305,4 +316,10 @@ class BackupDatabaseService(
 
     private suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =
         newSuspendedTransaction(Dispatchers.IO, database, statement = block)
+
+    fun listBackups(offset: Int, limit: Int): List<Backup> {
+        return transaction {
+            Backup.all().orderBy(BackupTable.id to SortOrder.DESC).limit(limit, offset.toLong()).toList()
+        }
+    }
 }
