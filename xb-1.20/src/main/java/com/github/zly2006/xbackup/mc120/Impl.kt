@@ -2,7 +2,6 @@ package com.github.zly2006.xbackup.mc120
 
 import com.github.zly2006.xbackup.XBackup
 import com.github.zly2006.xbackup.multi.MultiVersioned
-import net.minecraft.nbt.NbtIo
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
@@ -32,10 +31,13 @@ class Impl : MultiVersioned {
         XBackup.blockPlayerJoin = true
         XBackup.disableWatchdog = true
         server.playerManager.playerList.toList().forEach {
-            server.playerManager.playerList.remove(it)
             it.networkHandler.disconnect(Text.of(reason))
         }
         server.runTasks { true }
+        while (!server.playerManager.playerList.isEmpty()) {
+            server.networkIo.tick()
+            server.runTasks { true }
+        }
 
         for (world in server.worlds) {
             world.chunkManager.ticketManager.ticketsByPosition.forEach { p, l ->
