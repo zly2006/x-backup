@@ -10,10 +10,17 @@
   "icon": "assets/x_backup/icon.png",
   "environment": "*",
   "entrypoints": {
+    "main": [
+      {
+        "adapter": "kotlin",
+        "value": "com.github.zly2006.xbackup.mc120.XB120"
+      }
+    ]
   },
   "mixins": [
     "x_backup.120.mixins.json"
   ],
+  "accessWidener": "xb120.accesswidener",
   "depends": {
     "fabricloader": "*",
     "fabric-language-kotlin": "*",

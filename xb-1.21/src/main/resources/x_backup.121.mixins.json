@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.github.zly2006.xbackup.mc121.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MixinServer"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

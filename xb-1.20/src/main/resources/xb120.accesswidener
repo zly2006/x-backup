@@ -1,0 +1,4 @@
+accessWidener v1 named
+accessible method net/minecraft/server/world/ThreadedAnvilChunkStorage unloadChunks (Ljava/util/function/BooleanSupplier;)V
+accessible field net/minecraft/server/world/ThreadedAnvilChunkStorage unloadedChunks Lit/unimi/dsi/fastutil/longs/LongSet;
+accessible field net/minecraft/server/world/ThreadedAnvilChunkStorage loadedChunks Lit/unimi/dsi/fastutil/longs/LongSet;

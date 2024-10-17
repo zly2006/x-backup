@@ -12,7 +12,12 @@ data class BackupConfig(
 
 data class BackupResult(
     val success: Boolean,
-    val message: String
+    val message: String,
+    val backId: Int,
+    val totalSize: Long,
+    val compressedSize: Long,
+    val addedSize: Long,
+    val millis: Long
 )
 
 data class BackupProgress(
@@ -20,3 +25,7 @@ data class BackupProgress(
     val current: Long,
     val message: String
 )
+
+external fun createBackup(path: String, config: BackupConfig, progress: (BackupProgress) -> Unit): BackupResult
+
+
