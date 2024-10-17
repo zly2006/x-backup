@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "x_backup",
+  "version": "${version}",
+  "name": "X backup",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "AGPL-3.0",
+  "icon": "assets/x_backup/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "com.github.zly2006.xbackup.client.XBackupClient"
+    ],
+    "main": [
+      {
+        "adapter": "kotlin",
+        "value": "com.github.zly2006.xbackup.XBackup"
+      }
+    ]
+  },
+  "mixins": [
+    "x_backup.mixins.json",
+    {
+      "config": "x_backup.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": "*",
+    "fabric-language-kotlin": "*",
+    "minecraft": "~1.21"
+  }
+}
