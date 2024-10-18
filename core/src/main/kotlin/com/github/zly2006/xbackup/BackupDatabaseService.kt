@@ -21,7 +21,9 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import kotlin.coroutines.CoroutineContext
+import kotlin.io.path.createFile
 import kotlin.io.path.createParentDirectories
+import kotlin.io.path.exists
 import kotlin.io.path.fileSize
 
 class BackupDatabaseService(
@@ -64,7 +66,7 @@ class BackupDatabaseService(
     }
 
     class BackupEntry(id: EntityID<Int>): IntEntity(id) {
-        companion object: IntEntityClass<BackupEntry>(BackupEntryTable)
+        companion object: IntEntityClass<BackupEntry>(BackupEntryTable, entityCtor = ::BackupEntry)
 
         var path by BackupEntryTable.path
         var size by BackupEntryTable.size
@@ -84,19 +86,10 @@ class BackupDatabaseService(
             val hash: String,
             val gzip: Boolean,
         )
-
-        fun toModel() = Model(
-            path,
-            size,
-            lastModified,
-            isDirectory,
-            hash,
-            gzip
-        )
     }
 
     class Backup(id: EntityID<Int>): IntEntity(id) {
-        companion object : IntEntityClass<Backup>(BackupTable)
+        companion object : IntEntityClass<Backup>(BackupTable, entityCtor = ::Backup)
 
         var size by BackupTable.size
         var zippedSize by BackupTable.zippedSize
@@ -200,6 +193,9 @@ class BackupDatabaseService(
                         zippedSize = it.length()
                     }
                     else {
+                        if (!blob.exists()) {
+                            blob.createFile()
+                        }
                         GZIPOutputStream(blob.toFile().outputStream().buffered()).use { stream ->
                             it.inputStream().buffered().use { input ->
                                 input.copyTo(stream)

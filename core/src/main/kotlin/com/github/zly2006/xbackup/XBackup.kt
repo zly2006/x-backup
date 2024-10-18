@@ -11,6 +11,7 @@ import net.minecraft.util.WorldSavePath
 import org.jetbrains.exposed.sql.Database
 import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteDataSource
+import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.Path
 
 object XBackup : ModInitializer {
@@ -22,6 +23,7 @@ object XBackup : ModInitializer {
     // Restore
     var reason = ""
     var blockPlayerJoin = false
+    var disableSaving = false
     var disableWatchdog = false
 
     override fun onInitialize() {
@@ -43,13 +45,13 @@ object XBackup : ModInitializer {
         }
     }
 
-    fun ensureNotBusy(block: suspend () -> Unit) {
+    fun ensureNotBusy(context: CoroutineContext = server.asCoroutineDispatcher(), block: suspend () -> Unit) {
         require(server.isOnThread)
         if (backupRunning) {
             throw SimpleCommandExceptionType(Text.of("Backup is already running")).create()
         }
         backupRunning = true
-        service.launch(server.asCoroutineDispatcher()) {
+        service.launch(context) {
             try {
                 block()
             } finally {

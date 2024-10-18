@@ -1,11 +1,11 @@
-package com.redenmc.bragadier.ktdsl
+package com.github.zly2006.xbackup.ktdsl
 
+import com.mojang.brigadier.Command
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.ArgumentType
 import com.mojang.brigadier.builder.ArgumentBuilder
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.builder.RequiredArgumentBuilder
-import com.mojang.brigadier.context.CommandContext
 
 @Target(AnnotationTarget.CLASS, AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.FUNCTION)
 @DslMarker
@@ -16,7 +16,7 @@ open class RootBuilderScope<S>(
     var builders: MutableList<ArgumentBuilder<S, *>>? = mutableListOf()
 ) {
     @CommandBuilder
-    fun literal(name: String) = LiteralArgumentBuilder.literal<S>(name)!!
+    inline fun literal(name: String) = LiteralArgumentBuilder.literal<S>(name)!!
         .also(requireNotNull(builders) { "Command already built" }::add)
 
     @CommandBuilder
@@ -27,13 +27,13 @@ open class RootBuilderScope<S>(
 
 @CommandBuilder
 class BuilderScope<S>: RootBuilderScope<S>(mutableListOf()) {
-    var executes: ((CommandContext<S>) -> Int)? = null
+    var executes: Command<S>? = null
     @CommandBuilder
-    fun executes(function: (CommandContext<S>) -> Int) {
+    fun executes(function: Command<S>) {
         executes = function
     }
     @CommandBuilder
-    fun <T> argument(name: String, type: ArgumentType<T>) = RequiredArgumentBuilder.argument<S, T>(name, type)!!
+    inline fun <T> argument(name: String, type: ArgumentType<T>) = RequiredArgumentBuilder.argument<S, T>(name, type)!!
         .also(requireNotNull(builders) { "Command already built" }::add)
 
     @CommandBuilder
@@ -56,7 +56,7 @@ inline fun <S> ArgumentBuilder<S, *>.then(function: BuilderScope<S>.() -> Unit) 
     scope.builders!!.forEach(this::then)
     scope.builders = null
     if (scope.executes != null) {
-        this.executes { scope.executes!!(it) }
+        this.executes(scope.executes)
     }
 }
 
@@ -70,4 +70,4 @@ inline fun <S> CommandDispatcher<S>.register(function: RootBuilderScope<S>.() ->
     scope.builders = null
 }
 
-operator fun <S> ArgumentBuilder<S, *>.invoke(function: BuilderScope<S>.() -> Unit) = then(function)
+inline operator fun <S> ArgumentBuilder<S, *>.invoke(function: BuilderScope<S>.() -> Unit) = then(function)

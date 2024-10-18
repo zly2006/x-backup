@@ -4,7 +4,6 @@
   "package": "com.github.zly2006.xbackup.mc121.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "MixinServer"
   ],
   "injectors": {
     "defaultRequire": 1

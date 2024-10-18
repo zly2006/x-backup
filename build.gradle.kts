@@ -1,6 +1,3 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.0"
@@ -13,23 +10,15 @@ version = project.property("mod_version") as String
 group = project.property("maven_group") as String
 val exposed_version: String by project
 
-
-val targetJavaVersion = 21
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
-    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-    // if it is present.
-    // If you remove this line, sources will not be generated.
-    withSourcesJar()
-}
-
 allprojects {
     apply(plugin = "fabric-loom")
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
 
     base {
-        archivesName.set(project.property("archives_base_name") as String + project.name)
+        if (project != rootProject ) {
+            archivesName.set(project.property("archives_base_name") as String + project.name)
+        }
     }
 
     repositories {
@@ -108,7 +97,6 @@ allprojects {
 
         withType<JavaCompile>().configureEach {
             options.encoding = "UTF-8"
-            options.release.set(targetJavaVersion)
         }
 
         jar {
@@ -141,21 +129,10 @@ repositories {
 dependencies {
     include(project(":xb-1.21"))
     include(project(":xb-1.20"))
+    include(project(":core"))
 
     runtimeOnly(project(":xb-1.21", configuration = "namedElements"))
     runtimeOnly(project(":xb-1.20", configuration = "namedElements"))
-
-
-    fun DependencyHandler.shadowImpl(
-        dependency: String,
-    ): Dependency? {
-        return shadow(implementation(dependency)!!)
-    }
-
-    shadowImpl("org.jetbrains.exposed:exposed-core:$exposed_version")
-    shadowImpl("org.jetbrains.exposed:exposed-dao:$exposed_version")
-    shadowImpl("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
-    shadowImpl("org.xerial:sqlite-jdbc:3.46.0.0")
 }
 
 tasks {
@@ -164,33 +141,18 @@ tasks {
 //            into("assets/bettersleeping/")
 //        }
     }
-    shadowJar {
-        from("LICENSE")
-
-        configurations = listOf(
-            project.configurations.shadow.get()
-        )
-        archiveClassifier.set("dev-all")
-
-        exclude("kotlin/**", "kotlinx/**", "javax/**")
-        exclude("org/checkerframework/**", "org/intellij/**", "org/jetbrains/annotations/**")
-        exclude("com/google/gson/**")
-        exclude("org/slf4j/**")
-
-        val relocPath = "com.github.zly2006.xbackup."
-        relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")
-        // it appears you cannot relocate sqlite due to the native libraries
-        // relocate("org.sqlite", relocPath + "org.sqlite")
-    }
-
-    remapJar {
-        dependsOn(shadowJar)
-        input.set(shadowJar.get().archiveFile)
-    }
 }
 
-tasks.withType<KotlinCompile>().configureEach {
-    compilerOptions.jvmTarget.set(JvmTarget.fromTarget(targetJavaVersion.toString()))
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+    // if it is present.
+    // If you remove this line, sources will not be generated.
+    withSourcesJar()
+}
+
+kotlin {
+    jvmToolchain(17)
 }
 
 tasks.jar {

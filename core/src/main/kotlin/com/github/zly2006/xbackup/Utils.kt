@@ -3,9 +3,6 @@ package com.github.zly2006.xbackup
 import com.github.zly2006.xbackup.multi.MultiVersioned
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
-import net.minecraft.text.ClickEvent
-import net.minecraft.text.MutableText
-import net.minecraft.text.Text
 import java.util.*
 
 object Utils {
@@ -13,7 +10,7 @@ object Utils {
         ServiceLoader.load(MultiVersioned::class.java).single()
     }
 
-    fun ServerCommandSource.send(text: Text) {
+    fun ServerCommandSource.send(text: CrossVersionText) {
         service.sendMessage(this, text, false)
     }
 
@@ -32,10 +29,4 @@ object Utils {
     fun MinecraftServer.finishRestore() {
         service.finishRestore(this)
     }
-
-    fun MutableText.runCommand(cmd: String) = styled {
-         it.withClickEvent(
-             ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd)
-         )
-     }
 }

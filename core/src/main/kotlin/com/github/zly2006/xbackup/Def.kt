@@ -25,7 +25,3 @@ data class BackupProgress(
     val current: Long,
     val message: String
 )
-
-external fun createBackup(path: String, config: BackupConfig, progress: (BackupProgress) -> Unit): BackupResult
-
-

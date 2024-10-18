@@ -3,10 +3,14 @@ loom {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release = 21
+    options.release = 17
+}
+
+kotlin {
+    jvmToolchain(17)
 }

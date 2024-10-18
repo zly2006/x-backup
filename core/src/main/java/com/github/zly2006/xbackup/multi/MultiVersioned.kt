@@ -1,14 +1,16 @@
 package com.github.zly2006.xbackup.multi
 
+import com.github.zly2006.xbackup.CrossVersionText
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
-import net.minecraft.text.MutableText
 import net.minecraft.text.Text
 
 interface MultiVersioned {
     val implementationTitle: String
 
-    fun sendMessage(source: ServerCommandSource, text: Text, broadcastToOps: Boolean)
+    fun parseText(text: CrossVersionText): Text
+
+    fun sendMessage(source: ServerCommandSource, text: CrossVersionText, broadcastToOps: Boolean)
 
     fun save(server: MinecraftServer)
 

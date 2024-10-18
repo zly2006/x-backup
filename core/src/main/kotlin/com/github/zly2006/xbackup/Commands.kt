@@ -2,14 +2,15 @@ package com.github.zly2006.xbackup
 
 import com.github.zly2006.xbackup.Utils.finishRestore
 import com.github.zly2006.xbackup.Utils.prepareRestore
-import com.github.zly2006.xbackup.Utils.runCommand
 import com.github.zly2006.xbackup.Utils.save
 import com.github.zly2006.xbackup.Utils.send
 import com.github.zly2006.xbackup.Utils.setAutoSaving
+import com.github.zly2006.xbackup.ktdsl.register
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
-import com.redenmc.bragadier.ktdsl.register
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -17,6 +18,8 @@ import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
 import java.text.SimpleDateFormat
+
+fun literalText(text: String) = CrossVersionText.LiteralText(text)
 
 object Commands {
     fun sizeToString(bytes: Long): String {
@@ -50,9 +53,10 @@ object Commands {
                                 it.source.server.setAutoSaving(false)
                                 it.source.server.save()
 
-                                val result = XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
+                                val result =
+                                    XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
                                 it.source.send(
-                                    Text.of(
+                                    literalText(
                                         "Backup #${result.backId} finished, ${sizeToString(result.totalSize)} " +
                                                 "(${sizeToString(result.compressedSize)} after compression) " +
                                                 "+${sizeToString(result.addedSize)}"
@@ -73,7 +77,7 @@ object Commands {
                                 return@ensureNotBusy
                             }
                             XBackup.service.deleteBackup(id)
-                            it.source.send(Text.of("Backup #$id deleted"))
+                            it.source.send(literalText("Backup #$id deleted"))
                         }
                         1
                     }
@@ -82,7 +86,13 @@ object Commands {
                     argument("id", IntegerArgumentType.integer(1)).executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        XBackup.ensureNotBusy {
+                        XBackup.ensureNotBusy(
+                            context = if (it.source.server.isSingleplayer) {
+                                Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
+                            } else {
+                                it.source.server.asCoroutineDispatcher()
+                            }
+                        ) {
                             if (XBackup.service.getBackup(id) == null) {
                                 it.source.sendError(Text.of("Backup #$id not found"))
                                 return@ensureNotBusy
@@ -117,7 +127,7 @@ object Commands {
                                 return@ensureNotBusy
                             }
 
-                            it.source.send(Text.of(Json.encodeToString(backup.toModel())))
+                            it.source.send(literalText(Json.encodeToString(backup.toModel())))
                         }
                         1
                     }
@@ -132,17 +142,21 @@ object Commands {
                             }
                             val backups = XBackup.service.listBackups(offset, 6)
                             if (backups.isEmpty()) {
-                                it.source.send(Text.of("No backups found"))
-                            } else {
-                                it.source.send(Text.of("Backups:"))
+                                it.source.send(literalText("No backups found"))
+                            }
+                            else {
+                                it.source.send(literalText("Backups:"))
                                 backups.forEach { backup ->
                                     it.source.send(
-                                        Text.of(
-                                            "  #${backup.id.value} ${backup.comment} " +
-                                                    "(${sizeToString(backup.size)} " +
-                                                    "(${sizeToString(backup.zippedSize)} after compression) on " +
-                                                    SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(backup.created)
-                                        ).copy().runCommand("/xb info ${backup.id.value}")
+                                        CrossVersionText.ClickableText(
+                                            literalText(
+                                                "  #${backup.id.value} ${backup.comment} " +
+                                                        "${sizeToString(backup.size)} on " +
+                                                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(backup.created)
+                                            ),
+                                            "/xb info ${backup.id.value}",
+                                            literalText("Click to view details")
+                                        )
                                     )
                                 }
                             }
@@ -161,11 +175,23 @@ object Commands {
                             }
 
                             it.source.send(
-                                Text.of(
-                                    "Backup #$id: ${backup.comment} " +
-                                            "(${sizeToString(backup.size)} " +
-                                            "(${sizeToString(backup.zippedSize)} after compression) on " +
-                                            SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(backup.created)
+                                CrossVersionText.CombinedText(
+                                    literalText(
+                                        "Backup #$id: ${backup.comment} " +
+                                                "(${sizeToString(backup.size)} " +
+                                                "(${sizeToString(backup.zippedSize)} after compression) on " +
+                                                SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(backup.created) + "\n"
+                                    ),
+                                    CrossVersionText.ClickableText(
+                                        literalText("Delete"),
+                                        "/xb delete $id",
+                                        literalText("Click to delete")
+                                    ),
+                                    CrossVersionText.ClickableText(
+                                        literalText("  Restore"),
+                                        "/xb restore $id",
+                                        literalText("Click to restore")
+                                    ),
                                 )
                             )
                         }
