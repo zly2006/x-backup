@@ -38,24 +38,30 @@ object Commands {
         dispatcher.register {
             literal("xb") {
                 literal("create") {
-                    argument("comment", StringArgumentType.word()).executes {
-                        val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        val comment = StringArgumentType.getString(it, "comment")
-                        XBackup.ensureNotBusy {
-                            it.source.server.setAutoSaving(false)
-                            it.source.server.save()
+                    optional(argument("comment", StringArgumentType.word())) {
+                        executes {
+                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                            val comment = try {
+                                StringArgumentType.getString(it, "comment")
+                            } catch (_: IllegalArgumentException) {
+                                "Manual backup"
+                            }
+                            XBackup.ensureNotBusy {
+                                it.source.server.setAutoSaving(false)
+                                it.source.server.save()
 
-                            val result = XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
-                            it.source.send(
-                                Text.of(
-                                    "Backup #${result.backId} finished, ${sizeToString(result.totalSize)} " +
-                                            "(${sizeToString(result.compressedSize)} after compression) " +
-                                            "+${sizeToString(result.addedSize)}"
+                                val result = XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
+                                it.source.send(
+                                    Text.of(
+                                        "Backup #${result.backId} finished, ${sizeToString(result.totalSize)} " +
+                                                "(${sizeToString(result.compressedSize)} after compression) " +
+                                                "+${sizeToString(result.addedSize)}"
+                                    )
                                 )
-                            )
-                            it.source.server.setAutoSaving(true)
+                                it.source.server.setAutoSaving(true)
+                            }
+                            1
                         }
-                        1
                     }
                 }
                 literal("delete") {
