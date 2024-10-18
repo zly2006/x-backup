@@ -13,6 +13,7 @@ import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteDataSource
 import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.Path
+import kotlin.io.path.absolute
 
 object XBackup : ModInitializer {
     lateinit var service: BackupDatabaseService
@@ -41,7 +42,7 @@ object XBackup : ModInitializer {
                     url = "jdbc:sqlite:$path/x_backup.db"
                 }
             )
-            service = BackupDatabaseService(database, Path("blob"))
+            service = BackupDatabaseService(database, Path("blob").absolute())
         }
     }
 

@@ -127,7 +127,7 @@ object Commands {
                                 return@ensureNotBusy
                             }
 
-                            it.source.send(literalText(Json.encodeToString(backup.toModel())))
+                            it.source.send(literalText(Json.encodeToString(backup)))
                         }
                         1
                     }
@@ -150,11 +150,11 @@ object Commands {
                                     it.source.send(
                                         CrossVersionText.ClickableText(
                                             literalText(
-                                                "  #${backup.id.value} ${backup.comment} " +
+                                                "  #${backup.id} ${backup.comment} " +
                                                         "${sizeToString(backup.size)} on " +
                                                         SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(backup.created)
                                             ),
-                                            "/xb info ${backup.id.value}",
+                                            "/xb info ${backup.id}",
                                             literalText("Click to view details")
                                         )
                                     )

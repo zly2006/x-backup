@@ -60,7 +60,6 @@ allprojects {
         modImplementation("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_version")}")
 
         implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
-        implementation("org.jetbrains.exposed:exposed-dao:$exposed_version")
         implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
         implementation("org.xerial:sqlite-jdbc:3.46.0.0")
     }

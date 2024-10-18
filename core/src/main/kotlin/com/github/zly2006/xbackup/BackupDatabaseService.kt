@@ -1,35 +1,30 @@
 package com.github.zly2006.xbackup
 
+import com.github.zly2006.xbackup.BackupDatabaseService.BackupEntryTable
+import com.github.zly2006.xbackup.BackupDatabaseService.BackupTable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.dao.IntEntity
-import org.jetbrains.exposed.dao.IntEntityClass
-import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.nio.file.FileAlreadyExistsException
-import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import kotlin.coroutines.CoroutineContext
-import kotlin.io.path.createFile
-import kotlin.io.path.createParentDirectories
-import kotlin.io.path.exists
-import kotlin.io.path.fileSize
+import kotlin.io.path.*
 
 class BackupDatabaseService(
     private val database: Database,
-    private val blobDir: Path
-): CoroutineScope {
+    private val blobDir: Path,
+) : CoroutineScope {
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
 
@@ -43,7 +38,7 @@ class BackupDatabaseService(
         }
     }
 
-    object BackupEntryTable: IntIdTable("backup_entries") {
+    object BackupEntryTable : IntIdTable("backup_entries") {
         val path = varchar("path", 255).index()
         val size = long("size")
         val zippedSize = long("zipped_size")
@@ -53,189 +48,156 @@ class BackupDatabaseService(
         val gzip = bool("gzip")
     }
 
-    object BackupTable: IntIdTable("backups") {
+    object BackupTable : IntIdTable("backups") {
         val size = long("size")
         val zippedSize = long("zipped_size")
         val created = long("created")
         val comment = varchar("comment", 255)
     }
 
-    object BackupEntryBackupTable: IntIdTable("backup_entry_backup") {
+    object BackupEntryBackupTable : IntIdTable("backup_entry_backup") {
         val backup = reference("backup", BackupTable, ReferenceOption.CASCADE).index()
         val entry = reference("entry", BackupEntryTable, ReferenceOption.CASCADE).index()
     }
 
-    class BackupEntry(id: EntityID<Int>): IntEntity(id) {
-        companion object: IntEntityClass<BackupEntry>(BackupEntryTable, entityCtor = ::BackupEntry)
+    @Serializable
+    class BackupEntry(
+        val id: Int,
+        val path: String,
+        val size: Long,
+        val zippedSize: Long,
+        val lastModified: Long,
+        val isDirectory: Boolean,
+        val hash: String,
+        val gzip: Boolean,
+    )
 
-        var path by BackupEntryTable.path
-        var size by BackupEntryTable.size
-        var zippedSize by BackupEntryTable.zippedSize
-        var lastModified by BackupEntryTable.lastModified
-        var isDirectory by BackupEntryTable.isDirectory
-        var hash by BackupEntryTable.hash
-        var gzip by BackupEntryTable.gzip
-        val backups by Backup via BackupEntryBackupTable
-
-        @Serializable
-        class Model(
-            val path: String,
-            val size: Long,
-            val lastModified: Long,
-            val isDirectory: Boolean,
-            val hash: String,
-            val gzip: Boolean,
-        )
-    }
-
-    class Backup(id: EntityID<Int>): IntEntity(id) {
-        companion object : IntEntityClass<Backup>(BackupTable, entityCtor = ::Backup)
-
-        var size by BackupTable.size
-        var zippedSize by BackupTable.zippedSize
-        var created by BackupTable.created
-        var comment by BackupTable.comment
-        val entries by BackupEntry via BackupEntryBackupTable
-
-        @Serializable
-        class Model(
-            val size: Long,
-            val zippedSize: Long,
-            val created: Long,
-            val comment: String,
-            val entries: List<BackupEntry.Model>,
-        )
-
-        suspend fun toModel() = newSuspendedTransaction(db = db) {
-            Model(
-                size,
-                zippedSize,
-                created,
-                comment,
-                entries.map {
-                    BackupEntry.Model(
-                        it.path,
-                        it.size,
-                        it.lastModified,
-                        it.isDirectory,
-                        it.hash,
-                        it.gzip
-                    )
-                }.toList()
-            )
-        }
-    }
+    @Serializable
+    class Backup(
+        val id: Int,
+        val size: Long,
+        val zippedSize: Long,
+        val created: Long,
+        val comment: String,
+        val entries: List<BackupEntry>,
+    )
 
     suspend fun createBackup(root: Path, comment: String, predicate: (Path) -> Boolean): BackupResult {
-        val backup = dbQuery {
-            Backup.new {
-                size = 0
-                zippedSize = 0
-                created = System.currentTimeMillis()
-                this.comment = comment
-            }
-        }
         val timeStart = System.currentTimeMillis()
 
         val newEntries = ConcurrentHashMap.newKeySet<BackupEntry>()
         val entries = root.toFile().walk().filter {
             it.name != "x_backup.db" && !it.toPath().normalize().startsWith(blobDir.normalize()) &&
                     predicate(it.toPath())
-        }.map {
+        }.map { sourceFile ->
             @Suppress("SuspendFunctionOnCoroutineScope")
             this.async(Dispatchers.IO) {
-                val path = root.normalize().relativize(it.toPath()).normalize()
+                val path = root.normalize().relativize(sourceFile.toPath()).normalize()
                 val existing = dbQuery {
-                    BackupEntry.find {
+                    BackupEntryTable.selectAll().where {
                         BackupEntryTable.path eq path.toString()
-                    }.firstOrNull()
+                    }.firstOrNull()?.toBackupEntry()
                 }
                 if (existing != null) {
-                    if (it.isDirectory) {
+                    if (sourceFile.isDirectory) {
                         if (existing.isDirectory) {
                             return@async existing
                         }
                     }
-                    else if (it.isFile) {
+                    else if (sourceFile.isFile) {
                         if (!existing.isDirectory &&
-                            it.lastModified() == existing.lastModified && it.length() == existing.size
+                            sourceFile.lastModified() == existing.lastModified && sourceFile.length() == existing.size
                         ) {
                             return@async existing
                         }
                     }
                 }
 
-                val md5 = if (it.isFile) {
-                    it.inputStream().use { stream ->
+                val md5 = if (sourceFile.isFile) {
+                    sourceFile.inputStream().use { stream ->
                         MessageDigest.getInstance("MD5").digest(stream.readBytes())
                     }.joinToString("") { "%02x".format(it) }
-                } else ""
+                }
+                else ""
 
                 if (md5 == existing?.hash) {
                     return@async existing
                 }
                 dbQuery {
-                    BackupEntry.find {
+                    BackupEntryTable.selectAll().where {
                         BackupEntryTable.hash eq md5
-                    }.firstOrNull()
+                    }.firstOrNull()?.toBackupEntry()
                 }?.let { return@async it }
 
-                val blob = blobDir.resolve(md5.take(2)).resolve(md5.drop(2)).createParentDirectories()
-                val gzip = it.length() > 1024
+                val blob = blobDir.resolve(md5.take(2)).resolve(md5.drop(2))
+                val gzip = sourceFile.length() > 1024
                 val zippedSize: Long
-                if (it.isFile) {
+                if (sourceFile.isFile) {
+                    if (!blob.exists()) runCatching {
+                        // fuck u mcos
+                        blob.createParentDirectories().createFile()
+                    }
                     if (!gzip) {
                         try {
-                            Files.copy(it.toPath(), blob, StandardCopyOption.REPLACE_EXISTING)
+                            blob.outputStream().buffered().use { output ->
+                                sourceFile.inputStream().buffered().use { input ->
+                                    input.copyTo(output)
+                                }
+                            }
                         } catch (_: FileAlreadyExistsException) {
                             // fuck u macos
                         }
-                        zippedSize = it.length()
+                        zippedSize = sourceFile.length()
                     }
                     else {
-                        if (!blob.exists()) {
-                            blob.createFile()
-                        }
                         GZIPOutputStream(blob.toFile().outputStream().buffered()).use { stream ->
-                            it.inputStream().buffered().use { input ->
+                            sourceFile.inputStream().buffered().use { input ->
                                 input.copyTo(stream)
                             }
                         }
                         zippedSize = blob.fileSize()
                     }
-                } else {
+                }
+                else {
                     zippedSize = 0
                 }
 
                 val backupEntry = dbQuery {
-                    BackupEntry.new {
-                        this.path = path.toString()
-                        size = it.length()
-                        lastModified = it.lastModified()
-                        isDirectory = it.isDirectory
-                        hash = md5
-                        this.zippedSize = zippedSize
-                        this.gzip = gzip
+                    BackupEntryTable.insert {
+                        it[this.path] = path.toString()
+                        it[this.size] = sourceFile.length()
+                        it[this.lastModified] = sourceFile.lastModified()
+                        it[this.isDirectory] = sourceFile.isDirectory
+                        it[this.hash] = md5
+                        it[this.zippedSize] = zippedSize
+                        it[this.gzip] = gzip
                     }
-                }
+                }.resultedValues!!.single().toBackupEntry()
                 newEntries.add(backupEntry)
                 backupEntry
             }
         }.toList().awaitAll()
-        dbQuery {
-            backup.size = entries.sumOf { it.size }
-            backup.zippedSize = entries.sumOf { it.zippedSize }
+        val backup = dbQuery {
+            val backup = BackupTable.insert {
+                it[size] = entries.sumOf { it.size }
+                it[zippedSize] = entries.sumOf { it.zippedSize }
+                it[created] = System.currentTimeMillis()
+                it[this.comment] = comment
+            }.resultedValues!!.single().toBackup()
             entries.forEach { entry ->
                 BackupEntryBackupTable.insert {
                     it[this.backup] = backup.id
                     it[this.entry] = entry.id
                 }
             }
+            backup
+        }
+        dbQuery {
         }
         return BackupResult(
             true,
             "OK",
-            backup.id.value,
+            backup.id,
             backup.size,
             backup.zippedSize,
             newEntries.sumOf { it.zippedSize },
@@ -245,19 +207,25 @@ class BackupDatabaseService(
 
     suspend fun deleteBackup(id: Int) {
         dbQuery {
-            val backup = Backup.findById(id) ?: error("Backup not found")
+            val backup = getBackup(id) ?: error("Backup not found")
             backup.entries.forEach { entry ->
-                if (entry.backups.count() == 1L) {
+                if (BackupEntryBackupTable.selectAll().where {
+                        BackupEntryBackupTable.entry eq entry.id and
+                                (BackupEntryBackupTable.backup neq id)
+                    }.empty()
+                ) {
                     blobDir.resolve(entry.hash.take(2)).resolve(entry.hash.drop(2)).toFile().delete()
-                    entry.delete()
+                    BackupEntryTable.deleteWhere {
+                        BackupEntryTable.id eq entry.id
+                    }
                 }
             }
-            backup.delete()
+            BackupTable.deleteWhere { BackupTable.id eq id }
         }
     }
 
     suspend fun getBackup(id: Int): Backup? = dbQuery {
-        Backup.findById(id)
+        BackupTable.selectAll().where { BackupTable.id eq id }.firstOrNull()?.toBackup()
     }
 
     /**
@@ -270,7 +238,7 @@ class BackupDatabaseService(
      */
     suspend fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) {
         dbQuery {
-            val backup = Backup.findById(id) ?: error("Backup not found")
+            val backup = getBackup(id) ?: error("Backup not found")
             val map = backup.entries.associateBy { it.path }
             for (it in target.toFile().walk()) {
                 val path = target.normalize().relativize(it.toPath()).normalize()
@@ -293,14 +261,23 @@ class BackupDatabaseService(
                         path.toFile().mkdirs()
                     }
                     else {
+                        if (!path.exists()) {
+                            path.createParentDirectories().createFile()
+                        }
                         val blob = blobDir.resolve(it.value.hash.take(2)).resolve(it.value.hash.drop(2))
                         if (it.value.gzip) {
                             GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
-                                Files.copy(stream, path, StandardCopyOption.REPLACE_EXISTING)
+                                path.toFile().outputStream().buffered().use { output ->
+                                    stream.copyTo(output)
+                                }
                             }
                         }
                         else {
-                            Files.copy(blob, path, StandardCopyOption.REPLACE_EXISTING)
+                            blob.toFile().inputStream().buffered().use { input ->
+                                path.toFile().outputStream().buffered().use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
                         }
                         require(path.fileSize() == it.value.size)
                         path.toFile().setLastModified(it.value.lastModified)
@@ -315,7 +292,36 @@ class BackupDatabaseService(
 
     fun listBackups(offset: Int, limit: Int): List<Backup> {
         return transaction {
-            Backup.all().orderBy(BackupTable.id to SortOrder.DESC).limit(limit, offset.toLong()).toList()
+            BackupTable.selectAll()
+                .orderBy(BackupTable.id to SortOrder.DESC)
+                .limit(limit, offset.toLong()).toList()
+                .map { it.toBackup() }
         }
     }
 }
+
+private fun ResultRow.toBackup() = BackupDatabaseService.Backup(
+    this[BackupTable.id].value,
+    this[BackupTable.size],
+    this[BackupTable.zippedSize],
+    this[BackupTable.created],
+    this[BackupTable.comment],
+    BackupEntryTable.selectAll().where {
+        BackupEntryTable.id inSubQuery
+                BackupDatabaseService.BackupEntryBackupTable.select(BackupDatabaseService.BackupEntryBackupTable.entry)
+                    .where {
+                        BackupDatabaseService.BackupEntryBackupTable.backup eq this@toBackup[BackupTable.id]
+                    }
+    }.map { it.toBackupEntry() }
+)
+
+private fun ResultRow.toBackupEntry() = BackupDatabaseService.BackupEntry(
+    this[BackupEntryTable.id].value,
+    this[BackupEntryTable.path],
+    this[BackupEntryTable.size],
+    this[BackupEntryTable.zippedSize],
+    this[BackupEntryTable.lastModified],
+    this[BackupEntryTable.isDirectory],
+    this[BackupEntryTable.hash],
+    this[BackupEntryTable.gzip],
+)

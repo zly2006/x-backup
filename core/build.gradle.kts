@@ -41,8 +41,6 @@ tasks {
 
         val relocPath = "com.github.zly2006.xbackup."
         relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")
-        // it appears you cannot relocate sqlite due to the native libraries
-        // relocate("org.sqlite", relocPath + "org.sqlite")
     }
 
     remapJar {
@@ -59,7 +57,7 @@ dependencies {
     }
 
     shadowImpl("org.jetbrains.exposed:exposed-core:$exposed_version")
-    shadowImpl("org.jetbrains.exposed:exposed-dao:$exposed_version")
+//    shadowImpl("org.jetbrains.exposed:exposed-dao:$exposed_version")
     shadowImpl("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     shadowImpl("org.xerial:sqlite-jdbc:3.46.0.0")
 }
