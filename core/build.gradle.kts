@@ -60,4 +60,8 @@ dependencies {
 //    shadowImpl("org.jetbrains.exposed:exposed-dao:$exposed_version")
     shadowImpl("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     shadowImpl("org.xerial:sqlite-jdbc:3.46.0.0")
+
+    implementation("com.google.guava:guava:31.1-jre")
+    implementation("com.azure:azure-identity:1.10.4")
+    implementation("com.microsoft.graph:microsoft-graph:5.75.0")
 }

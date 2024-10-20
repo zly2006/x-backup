@@ -10,6 +10,12 @@
   "icon": "assets/x_backup/icon.png",
   "environment": "*",
   "entrypoints": {
+    "main": [
+      {
+        "value": "com.github.zly2006.xbackup.mc121.XB121",
+        "adapter": "kotlin"
+      }
+    ]
   },
   "mixins": [
     "x_backup.121.mixins.json"
@@ -18,5 +24,6 @@
     "fabricloader": "*",
     "fabric-language-kotlin": "*",
     "minecraft": "~1.21"
-  }
+  },
+  "accessWidener": "xb121.accesswidener"
 }

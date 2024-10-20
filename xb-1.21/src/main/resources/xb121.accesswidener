@@ -1,0 +1,9 @@
+accessWidener v1 named
+accessible field net/minecraft/server/world/ServerChunkManager ticketManager Lnet/minecraft/server/world/ChunkTicketManager;
+accessible field net/minecraft/server/world/ChunkTicketManager ticketsByPosition Lit/unimi/dsi/fastutil/longs/Long2ObjectOpenHashMap;
+accessible method net/minecraft/server/world/ChunkTicketManager removeTicket (JLnet/minecraft/server/world/ChunkTicket;)V
+accessible method net/minecraft/server/world/ServerChunkManager updateChunks ()Z
+accessible field net/minecraft/server/world/ServerChunkLoadingManager unloadedChunks Lit/unimi/dsi/fastutil/longs/LongSet;
+accessible method net/minecraft/server/world/ServerChunkLoadingManager unloadChunks (Ljava/util/function/BooleanSupplier;)V
+accessible field net/minecraft/server/world/ServerChunkLoadingManager currentChunkHolders Lit/unimi/dsi/fastutil/longs/Long2ObjectLinkedOpenHashMap;
+accessible method net/minecraft/server/world/ServerChunkLoadingManager updateHolderMap ()Z

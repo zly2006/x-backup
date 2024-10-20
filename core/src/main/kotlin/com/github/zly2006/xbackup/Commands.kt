@@ -53,6 +53,7 @@ object Commands {
                                 it.source.server.setAutoSaving(false)
                                 it.source.server.save()
 
+                                XBackup.disableSaving = true
                                 val result =
                                     XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
                                 it.source.send(
@@ -62,6 +63,7 @@ object Commands {
                                                 "+${sizeToString(result.addedSize)}"
                                     )
                                 )
+                                XBackup.disableSaving = false
                                 it.source.server.setAutoSaving(true)
                             }
                             1
@@ -86,6 +88,19 @@ object Commands {
                     argument("id", IntegerArgumentType.integer(1)).executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+
+
+                        XBackup.reason = "Auto-backup before restoring to #$id"
+                        it.source.server.setAutoSaving(false)
+                        it.source.server.save()
+                        XBackup.disableSaving = true
+                        XBackup.disableWatchdog = true
+                        runBlocking {
+                            XBackup.service.createBackup(path, "Auto-backup before restoring to #$id") { true }
+                        }
+                        XBackup.disableSaving = false
+                        it.source.server.setAutoSaving(true)
+
                         XBackup.ensureNotBusy(
                             context = if (it.source.server.isSingleplayer) {
                                 Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
@@ -98,12 +113,9 @@ object Commands {
                                 return@ensureNotBusy
                             }
                             try {
-                                it.source.server.setAutoSaving(false)
                                 it.source.server.prepareRestore("Restoring backup #$id")
 
                                 runBlocking {
-                                    XBackup.reason = "Auto-backup before restoring to #$id"
-                                    XBackup.service.createBackup(path, "Auto-backup before restoring to #$id") { true }
                                     XBackup.reason = "Restoring backup #$id"
                                     val result = XBackup.service.restore(id, path) { false }
                                     XBackup.reason = "Restoring backup #$id finished, launching server"

@@ -12,6 +12,7 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.io.ByteArrayOutputStream
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -114,9 +115,8 @@ class BackupDatabaseService(
                 }
 
                 val md5 = if (sourceFile.isFile) {
-                    sourceFile.inputStream().use { stream ->
-                        MessageDigest.getInstance("MD5").digest(stream.readBytes())
-                    }.joinToString("") { "%02x".format(it) }
+                    MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
+                        .joinToString("") { "%02x".format(it) }
                 }
                 else ""
 
@@ -150,7 +150,7 @@ class BackupDatabaseService(
                         zippedSize = sourceFile.length()
                     }
                     else {
-                        GZIPOutputStream(blob.toFile().outputStream().buffered()).use { stream ->
+                        GZIPOutputStream(blob.outputStream().buffered()).use { stream ->
                             sourceFile.inputStream().buffered().use { input ->
                                 input.copyTo(stream)
                             }
@@ -173,6 +173,12 @@ class BackupDatabaseService(
                         it[this.gzip] = gzip
                     }
                 }.resultedValues!!.single().toBackupEntry()
+//
+//                if (sourceFile.isFile) {
+//                    delay(5000)
+//                    require(MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
+//                        .joinToString("") { "%02x".format(it) } == backupEntry.hash)
+//                }
                 newEntries.add(backupEntry)
                 backupEntry
             }
@@ -267,15 +273,27 @@ class BackupDatabaseService(
                         val blob = blobDir.resolve(it.value.hash.take(2)).resolve(it.value.hash.drop(2))
                         if (it.value.gzip) {
                             GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
-                                path.toFile().outputStream().buffered().use { output ->
+                                path.outputStream().buffered().use { output ->
                                     stream.copyTo(output)
                                 }
                             }
                         }
                         else {
                             blob.toFile().inputStream().buffered().use { input ->
-                                path.toFile().outputStream().buffered().use { output ->
+                                path.outputStream().buffered().use { output ->
                                     input.copyTo(output)
+                                }
+                            }
+                        }
+                        val checkAgain = MessageDigest.getInstance("MD5").digest(path.toFile().inputStream().readBytes())
+                            .joinToString("") { "%02x".format(it) }
+                        if (checkAgain != it.value.hash) {
+                            GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
+                                ByteArrayOutputStream().use { output ->
+                                    stream.copyTo(output)
+                                    val gzipMd5 = MessageDigest.getInstance("MD5").digest(output.toByteArray())
+                                        .joinToString("") { "%02x".format(it) }
+                                    System.err.println("File hash mismatch, file: $path, expected: ${it.value.hash}, actual: $checkAgain, gzip: $gzipMd5")
                                 }
                             }
                         }
@@ -284,6 +302,7 @@ class BackupDatabaseService(
                     }
                 }
             }.awaitAll()
+            println("Restored backup $id")
         }
     }
 

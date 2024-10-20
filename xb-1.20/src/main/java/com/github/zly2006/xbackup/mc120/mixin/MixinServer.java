@@ -19,4 +19,14 @@ public class MixinServer {
             cir.setReturnValue(true);
         }
     }
+    @Inject(
+            method = "saveAll",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private void disableSaveAll(CallbackInfoReturnable<Boolean> cir) {
+        if (XBackup.INSTANCE.getDisableSaving()) {
+            cir.setReturnValue(true);
+        }
+    }
 }
