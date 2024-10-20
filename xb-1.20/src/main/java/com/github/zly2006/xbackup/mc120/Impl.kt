@@ -86,7 +86,7 @@ class Impl : MultiVersioned {
                 server.runTasks { true }
             }
 
-            while (server.worlds.any { world: ServerWorld -> world.chunkManager.threadedAnvilChunkStorage.shouldDelayShutdown() })
+            while (server.worlds.any { reasonOfDelayShutdown(it).isNotEmpty() })
             {
                 for (serverWorldx in server.worlds) {
                     serverWorldx.savingDisabled = false
@@ -99,7 +99,7 @@ class Impl : MultiVersioned {
                  }
             }
             server.worlds.forEach {
-                (it.chunkManager.threadedAnvilChunkStorage as RestoreAware).preRestore()
+                (it as RestoreAware).preRestore()
             }
 
             if (false) {
@@ -137,7 +137,7 @@ class Impl : MultiVersioned {
         XBackup.disableSaving = false
 
         server.worlds.forEach {
-            (it.chunkManager.threadedAnvilChunkStorage as RestoreAware).postRestore()
+            (it as RestoreAware).postRestore()
         }
     }
 
@@ -153,9 +153,9 @@ class Impl : MultiVersioned {
             val ticketManager = world.chunkManager.ticketManager
 
             return buildString {
-                if (lightingProvider.hasUpdates()) {
-                    append("lightingProvider.hasUpdates() ")
-                }
+//                if (lightingProvider.hasUpdates()) {
+//                    append("lightingProvider.hasUpdates() ")
+//                }
                 if (chunksToUnload.isNotEmpty()) {
                     append("chunksToUnload.isNotEmpty() ")
                 }

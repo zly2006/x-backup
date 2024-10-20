@@ -44,6 +44,9 @@ allprojects {
         maven {
             url = uri("https://jitpack.io/")
         }
+        maven {
+            url = uri("https://masa.dy.fi/maven")
+        }
         mavenCentral()
     }
 

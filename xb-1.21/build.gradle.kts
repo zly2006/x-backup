@@ -14,3 +14,7 @@ tasks.withType<JavaCompile>().configureEach {
 kotlin {
     jvmToolchain(21)
 }
+
+dependencies {
+    modRuntimeOnly("carpet:fabric-carpet:1.21-1.4.147+v240613")
+}

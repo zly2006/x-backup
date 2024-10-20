@@ -6,11 +6,14 @@
   "mixins": [
     "MixinChunkLoadingManager",
     "MixinDedicatedServerWatchdog",
+    "MixinEntityChunkDataAccess",
     "MixinRegionBasedStorage",
     "MixinServer",
+    "MixinServerEntityManager",
     "MixinSPNH",
     "MixinStorageIoWorker",
-    "MixinVersionedChunkStorage"
+    "MixinVersionedChunkStorage",
+    "MixinWorld"
   ],
   "injectors": {
     "defaultRequire": 1
