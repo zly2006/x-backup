@@ -13,3 +13,6 @@ accessible field net/minecraft/server/world/ThreadedAnvilChunkStorage unloadTask
 accessible field net/minecraft/server/world/ThreadedAnvilChunkStorage chunkTaskPrioritySystem Lnet/minecraft/server/world/ChunkTaskPrioritySystem;
 accessible field net/minecraft/server/world/ChunkTicketManager simulationDistanceTracker Lnet/minecraft/world/SimulationDistanceLevelPropagator;
 accessible class net/minecraft/server/world/ThreadedAnvilChunkStorage$EntityTracker
+accessible method net/minecraft/world/ChunkPosDistanceLevelPropagator updateLevel (JIZ)V
+accessible class net/minecraft/server/world/ChunkTicketManager$TicketDistanceLevelPropagator
+accessible class net/minecraft/server/world/ThreadedAnvilChunkStorage$TicketManager

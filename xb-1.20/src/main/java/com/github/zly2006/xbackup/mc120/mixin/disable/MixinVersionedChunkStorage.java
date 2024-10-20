@@ -1,8 +1,6 @@
-package com.github.zly2006.xbackup.mc120.mixin;
+package com.github.zly2006.xbackup.mc120.mixin.disable;
 
 import com.github.zly2006.xbackup.XBackup;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.storage.VersionedChunkStorage;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

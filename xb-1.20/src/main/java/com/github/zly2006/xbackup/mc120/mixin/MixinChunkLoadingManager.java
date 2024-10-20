@@ -4,6 +4,7 @@ import com.github.zly2006.xbackup.multi.RestoreAware;
 import com.mojang.datafixers.DataFixer;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import net.minecraft.entity.Entity;
+import net.minecraft.server.world.ChunkTaskPrioritySystem;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.world.ThreadedAnvilChunkStorage;
 import net.minecraft.world.storage.VersionedChunkStorage;
@@ -21,17 +22,25 @@ public abstract class MixinChunkLoadingManager extends VersionedChunkStorage imp
 
     @Shadow protected abstract void unloadEntity(Entity entity);
 
+    @Shadow @Final private ThreadedAnvilChunkStorage.TicketManager ticketManager;
+
+    @Shadow @Final public ChunkTaskPrioritySystem chunkTaskPrioritySystem;
+
     public MixinChunkLoadingManager(Path directory, DataFixer dataFixer, boolean dsync) {
         super(directory, dataFixer, dsync);
     }
 
     @Override
     public void preRestore() {
+        ((RestoreAware) this.ticketManager).preRestore();
+        ((RestoreAware) this.chunkTaskPrioritySystem).preRestore();
         ((RestoreAware) this.getWorker()).preRestore();
     }
 
     @Override
     public void postRestore() {
+        ((RestoreAware) this.ticketManager).postRestore();
+        ((RestoreAware) this.chunkTaskPrioritySystem).postRestore();
         ((RestoreAware) this.getWorker()).postRestore();
     }
 }

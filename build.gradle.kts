@@ -84,15 +84,19 @@ allprojects {
 //            inputs.property("loader_version", project.property("loader_version"))
             filteringCharset = "UTF-8"
 
-            println("processResources, project: ${project.name}, mc: ${project.property("minecraft_version")}")
+            val isRoot = project == rootProject
+            val mcVer = project.property("minecraft_version").toString()
+            val fabricLoaderVer = project.property("loader_version")
+            val kotlinLoaderVer = project.property("kotlin_loader_version")
+            println("processResources, project: ${project.name} ${if (isRoot) "(root)" else ""}, mc: $mcVer")
 
             filesMatching("fabric.mod.json") {
                 expand(
                     "version" to rootProject.version,
-                    "mc" to project.property("minecraft_version").toString().replace(".", "_"),
-                    "minecraft_version" to project.property("minecraft_version"),
-                    "loader_version" to project.property("loader_version"),
-                    "kotlin_loader_version" to project.property("kotlin_loader_version")
+                    "mc" to mcVer.replace(".", "_"),
+                    "minecraft_version" to mcVer,
+                    "loader_version" to fabricLoaderVer,
+                    "kotlin_loader_version" to kotlinLoaderVer
                 )
             }
         }

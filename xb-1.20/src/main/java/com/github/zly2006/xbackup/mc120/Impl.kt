@@ -11,9 +11,6 @@ import net.minecraft.text.ClickEvent
 import net.minecraft.text.HoverEvent
 import net.minecraft.text.MutableText
 import net.minecraft.text.Text
-import net.minecraft.util.TimeHelper
-import net.minecraft.util.Util
-import java.util.function.Predicate
 
 class Impl : MultiVersioned {
     override val implementationTitle: String
@@ -59,7 +56,7 @@ class Impl : MultiVersioned {
     }
 
     override fun save(server: MinecraftServer) {
-        server.saveAll(false, true, true)
+        server.saveAll(false, false, true)
     }
 
     override fun setAutoSaving(server: MinecraftServer, autoSaving: Boolean) {
@@ -89,6 +86,7 @@ class Impl : MultiVersioned {
             while (server.worlds.any { reasonOfDelayShutdown(it).isNotEmpty() })
             {
                 for (serverWorldx in server.worlds) {
+                    (serverWorldx as RestoreAware).preRestore()
                     serverWorldx.savingDisabled = false
                     serverWorldx.chunkManager.removePersistentTickets()
                     serverWorldx.chunkManager.tick({ true }, false)
@@ -97,9 +95,6 @@ class Impl : MultiVersioned {
                  while (server.runTask()) {
 
                  }
-            }
-            server.worlds.forEach {
-                (it as RestoreAware).preRestore()
             }
 
             if (false) {

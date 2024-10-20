@@ -17,7 +17,8 @@ import kotlin.io.path.absolute
 
 object XBackup : ModInitializer {
     lateinit var service: BackupDatabaseService
-    private lateinit var server: MinecraftServer
+    lateinit var server: MinecraftServer
+    val serverStarted get() = ::server.isInitialized
     // Backup
     var backupRunning = false
 

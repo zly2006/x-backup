@@ -16,6 +16,8 @@ kotlin {
 }
 
 dependencies {
-    modRuntimeOnly("carpet:fabric-carpet:1.20.3-1.4.128+v231205")
-    modRuntimeOnly("maven.modrinth:carpet-tis-addition:v1.63.0-mc1.20.4")
+    // https://github.com/TISUnion/Carpet-TIS-Addition/issues/177
+//    modImplementation("maven.modrinth:carpet:1.4.128")
+//    modImplementation("maven.modrinth:carpet-tis-addition:v1.63.0-mc1.20.4")
+//    modImplementation("maven.modrinth:lithium:mc1.20.4-0.12.1")
 }
