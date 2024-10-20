@@ -4,9 +4,13 @@
   "package": "com.github.zly2006.xbackup.mc120.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "MixinChunkLoadingManager",
     "MixinDedicatedServerWatchdog",
+    "MixinRegionBasedStorage",
     "MixinServer",
-    "MixinSPNH"
+    "MixinSPNH",
+    "MixinStorageIoWorker",
+    "MixinVersionedChunkStorage"
   ],
   "injectors": {
     "defaultRequire": 1

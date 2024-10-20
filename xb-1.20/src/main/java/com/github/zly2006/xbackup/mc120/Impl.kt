@@ -3,6 +3,7 @@ package com.github.zly2006.xbackup.mc120
 import com.github.zly2006.xbackup.CrossVersionText
 import com.github.zly2006.xbackup.XBackup
 import com.github.zly2006.xbackup.multi.MultiVersioned
+import com.github.zly2006.xbackup.multi.RestoreAware
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.server.world.ServerWorld
@@ -97,6 +98,9 @@ class Impl : MultiVersioned {
 
                  }
             }
+            server.worlds.forEach {
+                (it.chunkManager.threadedAnvilChunkStorage as RestoreAware).preRestore()
+            }
 
             if (false) {
                 for (world in server.worlds) {
@@ -131,6 +135,10 @@ class Impl : MultiVersioned {
         XBackup.blockPlayerJoin = false
         XBackup.disableWatchdog = false
         XBackup.disableSaving = false
+
+        server.worlds.forEach {
+            (it.chunkManager.threadedAnvilChunkStorage as RestoreAware).postRestore()
+        }
     }
 
     companion object {

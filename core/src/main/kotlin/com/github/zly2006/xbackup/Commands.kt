@@ -98,7 +98,6 @@ object Commands {
                         runBlocking {
                             XBackup.service.createBackup(path, "Auto-backup before restoring to #$id") { true }
                         }
-                        XBackup.disableSaving = false
                         it.source.server.setAutoSaving(true)
 
                         XBackup.ensureNotBusy(

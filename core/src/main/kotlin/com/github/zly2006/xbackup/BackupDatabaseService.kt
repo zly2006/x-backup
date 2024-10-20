@@ -2,17 +2,13 @@ package com.github.zly2006.xbackup
 
 import com.github.zly2006.xbackup.BackupDatabaseService.BackupEntryTable
 import com.github.zly2006.xbackup.BackupDatabaseService.BackupTable
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.io.ByteArrayOutputStream
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -243,66 +239,68 @@ class BackupDatabaseService(
      * usually should be opposite of the predicate used in [createBackup]
      */
     suspend fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) {
-        dbQuery {
-            val backup = getBackup(id) ?: error("Backup not found")
-            val map = backup.entries.associateBy { it.path }
-            for (it in target.toFile().walk()) {
-                val path = target.normalize().relativize(it.toPath()).normalize()
-                if (it.name == "x_backup.db")
-                    continue
-                if (ignored(path))
-                    continue
-                val entry = map[path.toString()]
-                if (entry == null) {
-                    it.deleteRecursively()
-                }
-                else if (it.isDirectory != entry.isDirectory) {
-                    it.deleteRecursively()
-                }
-            }
-            map.map {
-                this@BackupDatabaseService.async {
-                    val path = target.resolve(it.key).normalize().createParentDirectories()
-                    if (it.value.isDirectory) {
-                        path.toFile().mkdirs()
+        coroutineScope {
+            dbQuery {
+                val backup = getBackup(id) ?: error("Backup not found")
+                val map = backup.entries.associateBy { it.path }
+                for (it in target.toFile().walk()) {
+                    val path = target.normalize().relativize(it.toPath()).normalize()
+                    if (it.name == "x_backup.db")
+                        continue
+                    if (ignored(path))
+                        continue
+                    val entry = map[path.toString()]
+                    if (entry == null) {
+                        it.deleteRecursively()
                     }
-                    else {
-                        if (!path.exists()) {
-                            path.createParentDirectories().createFile()
-                        }
-                        val blob = blobDir.resolve(it.value.hash.take(2)).resolve(it.value.hash.drop(2))
-                        if (it.value.gzip) {
-                            GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
-                                path.outputStream().buffered().use { output ->
-                                    stream.copyTo(output)
-                                }
-                            }
+                    else if (it.isDirectory != entry.isDirectory) {
+                        it.deleteRecursively()
+                    }
+                }
+                map.map {
+                    this@BackupDatabaseService.async {
+                        val path = target.resolve(it.key).normalize().createParentDirectories()
+                        if (it.value.isDirectory) {
+                            path.toFile().mkdirs()
                         }
                         else {
-                            blob.toFile().inputStream().buffered().use { input ->
-                                path.outputStream().buffered().use { output ->
-                                    input.copyTo(output)
+                            if (!path.exists()) {
+                                path.createParentDirectories().createFile()
+                            }
+                            val blob = blobDir.resolve(it.value.hash.take(2)).resolve(it.value.hash.drop(2))
+                            if (it.value.gzip) {
+//                            GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
+//                                path.outputStream().buffered().use { output ->
+//                                    stream.copyTo(output)
+//                                }
+//                            }
+                                val bytes = GZIPInputStream(blob.toFile().inputStream().buffered()).readBytes()
+                                path.toFile().writeBytes(bytes)
+                            }
+                            else {
+                                blob.toFile().inputStream().buffered().use { input ->
+                                    path.outputStream().buffered().use { output ->
+                                        input.copyTo(output)
+                                    }
                                 }
                             }
-                        }
-                        val checkAgain = MessageDigest.getInstance("MD5").digest(path.toFile().inputStream().readBytes())
-                            .joinToString("") { "%02x".format(it) }
-                        if (checkAgain != it.value.hash) {
-                            GZIPInputStream(blob.toFile().inputStream().buffered()).use { stream ->
-                                ByteArrayOutputStream().use { output ->
-                                    stream.copyTo(output)
-                                    val gzipMd5 = MessageDigest.getInstance("MD5").digest(output.toByteArray())
-                                        .joinToString("") { "%02x".format(it) }
-                                    System.err.println("File hash mismatch, file: $path, expected: ${it.value.hash}, actual: $checkAgain, gzip: $gzipMd5")
-                                }
+                            val checkAgain =
+                                MessageDigest.getInstance("MD5").digest(path.toFile().inputStream().readBytes())
+                                    .joinToString("") { "%02x".format(it) }
+                            if (checkAgain != it.value.hash) {
+                                val bytes = GZIPInputStream(blob.toFile().inputStream().buffered()).readBytes()
+                                val gzipMd5 = MessageDigest.getInstance("MD5").digest(bytes)
+                                    .joinToString("") { "%02x".format(it) }
+                                System.err.println("File hash mismatch, file: $path, expected: ${it.value.hash}, actual: $checkAgain, gzip: $gzipMd5")
+                                path.writeBytes(bytes)
                             }
+                            require(path.fileSize() == it.value.size)
+                            path.toFile().setLastModified(it.value.lastModified)
                         }
-                        require(path.fileSize() == it.value.size)
-                        path.toFile().setLastModified(it.value.lastModified)
                     }
-                }
-            }.awaitAll()
-            println("Restored backup $id")
+                }.awaitAll()
+                println("Restored backup $id")
+            }
         }
     }
 
