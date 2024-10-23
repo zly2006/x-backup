@@ -8,6 +8,7 @@ pluginManagement {
 }
 
 include("xb-1.21")
+include("xb-1.21.2")
 include("xb-1.20")
 include("xb-1.18")
 include("core")

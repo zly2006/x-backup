@@ -12,21 +12,21 @@
   "entrypoints": {
     "main": [
       {
-        "value": "com.github.zly2006.xbackup.mc121.XB121",
+        "value": "com.github.zly2006.xbackup.mc121_2.XB121_2",
         "adapter": "kotlin"
       }
     ]
   },
   "mixins": [
-    "x_backup.121.mixins.json"
+    "x_backup.121.2.mixins.json"
   ],
   "depends": {
     "fabricloader": "*",
     "fabric-language-kotlin": "*",
     "minecraft": [
-      "1.21",
-      "1.21.1"
+      "1.21.2",
+      "1.21.3"
     ]
   },
-  "accessWidener": "xb121.accesswidener"
+  "accessWidener": "xb121.2.accesswidener"
 }

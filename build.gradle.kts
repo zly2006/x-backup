@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.0"
-    id("fabric-loom") version "1.7.1"
+    id("fabric-loom") version "1.8.9"
     id("maven-publish")
     id("io.github.goooler.shadow") version "8.1.7"
 }
