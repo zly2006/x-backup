@@ -4,6 +4,19 @@
   "package": "com.github.zly2006.xbackup.mc121.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "MixinChunkLoadingManager",
+    "MixinChunkTaskPrioritySystem",
+    "MixinChunkTicketManager",
+    "MixinDedicatedServerWatchdog",
+    "MixinEntityChunkDataAccess",
+    "MixinLevelPrioritizedQueue",
+    "MixinRegionBasedStorage",
+    "MixinServer",
+    "MixinServerEntityManager",
+    "MixinSPNH",
+    "MixinStorageIoWorker",
+    "MixinWorld",
+    "disable.MixinVersionedChunkStorage"
   ],
   "injectors": {
     "defaultRequire": 1

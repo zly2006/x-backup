@@ -41,7 +41,7 @@ object Commands {
         dispatcher.register {
             literal("xb") {
                 literal("create") {
-                    optional(argument("comment", StringArgumentType.word())) {
+                    optional(argument("comment", StringArgumentType.greedyString())) {
                         executes {
                             val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
                             val comment = try {

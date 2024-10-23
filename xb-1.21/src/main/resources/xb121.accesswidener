@@ -7,3 +7,9 @@ accessible field net/minecraft/server/world/ServerChunkLoadingManager unloadedCh
 accessible method net/minecraft/server/world/ServerChunkLoadingManager unloadChunks (Ljava/util/function/BooleanSupplier;)V
 accessible field net/minecraft/server/world/ServerChunkLoadingManager currentChunkHolders Lit/unimi/dsi/fastutil/longs/Long2ObjectLinkedOpenHashMap;
 accessible method net/minecraft/server/world/ServerChunkLoadingManager updateHolderMap ()Z
+accessible field net/minecraft/server/world/ServerChunkLoadingManager chunkTaskPrioritySystem Lnet/minecraft/server/world/ChunkTaskPrioritySystem;
+accessible field net/minecraft/server/world/ServerChunkLoadingManager unloadTaskQueue Ljava/util/Queue;
+accessible class net/minecraft/server/world/ServerChunkLoadingManager$TicketManager
+accessible class net/minecraft/server/world/ChunkTicketManager$TicketDistanceLevelPropagator
+accessible method net/minecraft/world/ChunkPosDistanceLevelPropagator updateLevel (JIZ)V
+accessible field net/minecraft/world/storage/ChunkPosKeyedStorage worker Lnet/minecraft/world/storage/StorageIoWorker;
