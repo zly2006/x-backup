@@ -32,7 +32,10 @@ public abstract class MixinChunkLoadingManager extends VersionedChunkStorage imp
         ((RestoreAware) this.chunkTaskPrioritySystem).preRestore();
         ((RestoreAware) this.getWorker()).preRestore();
         // 1.21 only
-        loaders.forEach(ChunkLoader::markPendingDisposal);
+        for (ChunkLoader loader : loaders) {
+            loader.markPendingDisposal();
+            loader.run();
+        }
     }
 
     @Override

@@ -18,10 +18,14 @@ public class MixinLevelPrioritizedQueue implements RestoreAware {
 
     @Shadow private volatile int firstNonEmptyLevel;
 
+    @Shadow @Final private String name;
+
     @Override
     public void preRestore() {
-        levelToPosToElements.forEach(Long2ObjectLinkedOpenHashMap::clear);
-        this.firstNonEmptyLevel = LEVEL_COUNT;
+        if ("light_queue".equals(name)) {
+            levelToPosToElements.forEach(Long2ObjectLinkedOpenHashMap::clear);
+            this.firstNonEmptyLevel = LEVEL_COUNT;
+        }
     }
 
     @Override
