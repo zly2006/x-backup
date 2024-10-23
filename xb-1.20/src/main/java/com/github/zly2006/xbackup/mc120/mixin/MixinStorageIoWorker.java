@@ -24,7 +24,6 @@ public class MixinStorageIoWorker implements RestoreAware {
 
     @Override
     public void postRestore() {
-        results.clear();
         ((RestoreAware) (Object) this.storage).postRestore();
     }
 }

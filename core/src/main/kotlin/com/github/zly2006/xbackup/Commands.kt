@@ -14,6 +14,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import net.minecraft.command.argument.ColumnPosArgumentType
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
@@ -60,7 +61,8 @@ object Commands {
                                     literalText(
                                         "Backup #${result.backId} finished, ${sizeToString(result.totalSize)} " +
                                                 "(${sizeToString(result.compressedSize)} after compression) " +
-                                                "+${sizeToString(result.addedSize)}"
+                                                "+${sizeToString(result.addedSize)} " +
+                                                "in ${result.millis}ms"
                                     )
                                 )
                                 XBackup.disableSaving = false
@@ -85,7 +87,52 @@ object Commands {
                     }
                 }
                 literal("restore") {
-                    argument("id", IntegerArgumentType.integer(1)).executes {
+                    argument("id", IntegerArgumentType.integer(1)) {
+                        literal("--chunk") {
+                            argument("chunk", ColumnPosArgumentType.columnPos()).executes {
+                                val id = IntegerArgumentType.getInteger(it, "id")
+                                val chunk = ColumnPosArgumentType.getColumnPos(it, "chunk")
+                                val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+
+                                XBackup.reason = "Auto-backup before restoring to #$id"
+                                it.source.server.setAutoSaving(false)
+                                it.source.server.save()
+                                XBackup.disableSaving = true
+                                XBackup.disableWatchdog = true
+                                runBlocking {
+                                    XBackup.service.createBackup(path, "Auto-backup before restoring to #$id") { true }
+                                }
+                                it.source.server.setAutoSaving(true)
+
+                                TODO()
+                                XBackup.ensureNotBusy(
+                                    context = if (it.source.server.isSingleplayer) {
+                                        Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
+                                    } else {
+                                        it.source.server.asCoroutineDispatcher()
+                                    }
+                                ) {
+                                    if (XBackup.service.getBackup(id) == null) {
+                                        it.source.sendError(Text.of("Backup #$id not found"))
+                                        return@ensureNotBusy
+                                    }
+                                    try {
+                                        it.source.server.prepareRestore("Restoring backup #$id")
+
+                                        runBlocking {
+                                            XBackup.reason = "Restoring backup #$id"
+                                            val result = XBackup.service.restore(id, path) { false }
+                                            XBackup.reason = "Restoring backup #$id finished, launching server"
+                                        }
+                                    } finally {
+                                        it.source.server.finishRestore()
+                                        it.source.server.setAutoSaving(true)
+                                    }
+                                }
+                                1
+                            }
+                        }
+                    }.executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
 

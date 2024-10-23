@@ -3,6 +3,7 @@ package com.github.zly2006.xbackup
 import com.github.zly2006.xbackup.BackupDatabaseService.BackupEntryTable
 import com.github.zly2006.xbackup.BackupDatabaseService.BackupTable
 import kotlinx.coroutines.*
+import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
@@ -22,6 +23,12 @@ class BackupDatabaseService(
     private val database: Database,
     private val blobDir: Path,
 ) : CoroutineScope {
+    private val ignoredFiles = setOf(
+        "x_backup.db",
+        "x_backup.db-journal",
+        "session.lock",
+    )
+
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
 
@@ -84,99 +91,104 @@ class BackupDatabaseService(
 
         val newEntries = ConcurrentHashMap.newKeySet<BackupEntry>()
         val entries = root.toFile().walk().filter {
-            it.name != "x_backup.db" && !it.toPath().normalize().startsWith(blobDir.normalize()) &&
+            it.name !in ignoredFiles && !it.toPath().normalize().startsWith(blobDir.normalize()) &&
                     predicate(it.toPath())
         }.map { sourceFile ->
             @Suppress("SuspendFunctionOnCoroutineScope")
             this.async(Dispatchers.IO) {
-                val path = root.normalize().relativize(sourceFile.toPath()).normalize()
-                val existing = dbQuery {
-                    BackupEntryTable.selectAll().where {
-                        BackupEntryTable.path eq path.toString()
-                    }.firstOrNull()?.toBackupEntry()
-                }
-                if (existing != null) {
-                    if (sourceFile.isDirectory) {
-                        if (existing.isDirectory) {
-                            return@async existing
+                try {
+                    val path = root.normalize().relativize(sourceFile.toPath()).normalize()
+                    val existing = dbQuery {
+                        BackupEntryTable.selectAll().where {
+                            BackupEntryTable.path eq path.toString()
+                        }.firstOrNull()?.toBackupEntry()
+                    }
+                    if (existing != null) {
+                        if (sourceFile.isDirectory) {
+                            if (existing.isDirectory) {
+                                return@async existing
+                            }
+                        }
+                        else if (sourceFile.isFile) {
+                            if (!existing.isDirectory &&
+                                sourceFile.lastModified() == existing.lastModified && sourceFile.length() == existing.size
+                            ) {
+                                return@async existing
+                            }
                         }
                     }
-                    else if (sourceFile.isFile) {
-                        if (!existing.isDirectory &&
-                            sourceFile.lastModified() == existing.lastModified && sourceFile.length() == existing.size
-                        ) {
-                            return@async existing
+
+                    val md5 = if (sourceFile.isFile) {
+                        MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
+                            .joinToString("") { "%02x".format(it) }
+                    }
+                    else ""
+
+                    if (md5 == existing?.hash) {
+                        return@async existing
+                    }
+                    dbQuery {
+                        BackupEntryTable.selectAll().where {
+                            BackupEntryTable.hash eq md5
+                        }.firstOrNull()?.toBackupEntry()
+                    }?.let { return@async it }
+
+                    val blob = blobDir.resolve(md5.take(2)).resolve(md5.drop(2))
+                    val gzip = sourceFile.length() > 1024
+                    val zippedSize: Long
+                    if (sourceFile.isFile) {
+                        if (!blob.exists()) runCatching {
+                            // fuck u mcos
+                            blob.createParentDirectories().createFile()
                         }
-                    }
-                }
-
-                val md5 = if (sourceFile.isFile) {
-                    MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
-                        .joinToString("") { "%02x".format(it) }
-                }
-                else ""
-
-                if (md5 == existing?.hash) {
-                    return@async existing
-                }
-                dbQuery {
-                    BackupEntryTable.selectAll().where {
-                        BackupEntryTable.hash eq md5
-                    }.firstOrNull()?.toBackupEntry()
-                }?.let { return@async it }
-
-                val blob = blobDir.resolve(md5.take(2)).resolve(md5.drop(2))
-                val gzip = sourceFile.length() > 1024
-                val zippedSize: Long
-                if (sourceFile.isFile) {
-                    if (!blob.exists()) runCatching {
-                        // fuck u mcos
-                        blob.createParentDirectories().createFile()
-                    }
-                    if (!gzip) {
-                        try {
-                            blob.outputStream().buffered().use { output ->
+                        if (!gzip) {
+                            try {
+                                blob.outputStream().buffered().use { output ->
+                                    sourceFile.inputStream().buffered().use { input ->
+                                        input.copyTo(output)
+                                    }
+                                }
+                            } catch (_: FileAlreadyExistsException) {
+                                // fuck u macos
+                            }
+                            zippedSize = sourceFile.length()
+                        }
+                        else {
+                            GZIPOutputStream(blob.outputStream().buffered()).use { stream ->
                                 sourceFile.inputStream().buffered().use { input ->
-                                    input.copyTo(output)
+                                    input.copyTo(stream)
                                 }
                             }
-                        } catch (_: FileAlreadyExistsException) {
-                            // fuck u macos
+                            zippedSize = blob.fileSize()
                         }
-                        zippedSize = sourceFile.length()
                     }
                     else {
-                        GZIPOutputStream(blob.outputStream().buffered()).use { stream ->
-                            sourceFile.inputStream().buffered().use { input ->
-                                input.copyTo(stream)
-                            }
-                        }
-                        zippedSize = blob.fileSize()
+                        zippedSize = 0
                     }
-                }
-                else {
-                    zippedSize = 0
-                }
 
-                val backupEntry = dbQuery {
-                    BackupEntryTable.insert {
-                        it[this.path] = path.toString()
-                        it[this.size] = sourceFile.length()
-                        it[this.lastModified] = sourceFile.lastModified()
-                        it[this.isDirectory] = sourceFile.isDirectory
-                        it[this.hash] = md5
-                        it[this.zippedSize] = zippedSize
-                        it[this.gzip] = gzip
-                    }
-                }.resultedValues!!.single().toBackupEntry()
+                    val backupEntry = dbQuery {
+                        BackupEntryTable.insert {
+                            it[this.path] = path.toString()
+                            it[this.size] = sourceFile.length()
+                            it[this.lastModified] = sourceFile.lastModified()
+                            it[this.isDirectory] = sourceFile.isDirectory
+                            it[this.hash] = md5
+                            it[this.zippedSize] = zippedSize
+                            it[this.gzip] = gzip
+                        }
+                    }.resultedValues!!.single().toBackupEntry()
 //
 //                if (sourceFile.isFile) {
 //                    delay(5000)
 //                    require(MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
 //                        .joinToString("") { "%02x".format(it) } == backupEntry.hash)
 //                }
-                newEntries.add(backupEntry)
-                backupEntry
+                    newEntries.add(backupEntry)
+                    backupEntry
+                }
+                catch (e: IOException) {
+                    throw IOException("Error backing up file: $sourceFile", e)
+                }
             }
         }.toList().awaitAll()
         val backup = dbQuery {
@@ -245,7 +257,7 @@ class BackupDatabaseService(
                 val map = backup.entries.associateBy { it.path }
                 for (it in target.toFile().walk()) {
                     val path = target.normalize().relativize(it.toPath()).normalize()
-                    if (it.name == "x_backup.db")
+                    if (it.name in ignoredFiles)
                         continue
                     if (ignored(path))
                         continue
