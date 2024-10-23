@@ -4,6 +4,7 @@ import com.github.zly2006.xbackup.multi.RestoreAware;
 import com.mojang.datafixers.DataFixer;
 import net.minecraft.server.world.ChunkTaskPrioritySystem;
 import net.minecraft.server.world.ServerChunkLoadingManager;
+import net.minecraft.world.chunk.ChunkLoader;
 import net.minecraft.world.storage.StorageKey;
 import net.minecraft.world.storage.VersionedChunkStorage;
 import org.spongepowered.asm.mixin.Final;
@@ -11,12 +12,15 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 
 import java.nio.file.Path;
+import java.util.List;
 
 @Mixin(ServerChunkLoadingManager.class)
 public abstract class MixinChunkLoadingManager extends VersionedChunkStorage implements RestoreAware  {
     @Shadow @Final private ServerChunkLoadingManager.TicketManager ticketManager;
 
     @Shadow @Final private ChunkTaskPrioritySystem chunkTaskPrioritySystem;
+
+    @Shadow @Final private List<ChunkLoader> loaders;
 
     public MixinChunkLoadingManager(StorageKey storageKey, Path directory, DataFixer dataFixer, boolean dsync) {
         super(storageKey, directory, dataFixer, dsync);
@@ -27,6 +31,8 @@ public abstract class MixinChunkLoadingManager extends VersionedChunkStorage imp
         ((RestoreAware) this.ticketManager).preRestore();
         ((RestoreAware) this.chunkTaskPrioritySystem).preRestore();
         ((RestoreAware) this.getWorker()).preRestore();
+        // 1.21 only
+        loaders.forEach(ChunkLoader::markPendingDisposal);
     }
 
     @Override

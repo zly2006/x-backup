@@ -14,7 +14,7 @@ public class MixinRegionBasedStorage implements RestoreAware {
 
     @Override
     public void preRestore() {
-
+        cachedRegionFiles.clear();
     }
 
     @Override
