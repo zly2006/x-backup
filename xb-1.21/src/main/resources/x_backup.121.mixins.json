@@ -16,7 +16,7 @@
     "MixinSPNH",
     "MixinStorageIoWorker",
     "MixinWorld",
-    "disable.MixinVersionedChunkStorage"
+    "disable.MixinStorageIoWorker"
   ],
   "injectors": {
     "defaultRequire": 1

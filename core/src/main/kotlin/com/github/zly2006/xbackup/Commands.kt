@@ -51,9 +51,8 @@ object Commands {
                                 "Manual backup"
                             }
                             XBackup.ensureNotBusy {
-                                it.source.server.setAutoSaving(false)
                                 it.source.server.save()
-
+                                it.source.server.setAutoSaving(false)
                                 XBackup.disableSaving = true
                                 val result =
                                     XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }

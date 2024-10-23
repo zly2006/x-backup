@@ -7,18 +7,18 @@ import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ServerEntityManager;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.storage.ChunkDataAccess;
+import net.minecraft.world.storage.ChunkDataList;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
 
+import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 
 @Mixin(ServerEntityManager.class)
 public abstract class MixinServerEntityManager implements RestoreAware {
-    @Shadow public abstract void flush();
-
     @Shadow @Final private LongSet pendingUnloads;
 
     @Shadow @Final private ChunkDataAccess<?> dataAccess;
@@ -40,12 +40,15 @@ public abstract class MixinServerEntityManager implements RestoreAware {
 
     @Shadow protected abstract boolean unload(long chunkPos);
 
+    @Shadow @Final private Queue<ChunkDataList<?>> loadingQueue;
+
     @Override
     public void preRestore() {
         getLoadedChunks().forEach(this::unload);
-        trackingStatuses.clear();
-        managedStatuses.clear();
-        flush();//todo
+        this.trackingStatuses.clear();
+        this.managedStatuses.clear();
+        this.pendingUnloads.clear();
+        this.loadingQueue.clear();
         ((RestoreAware) dataAccess).preRestore();
     }
 
@@ -53,6 +56,7 @@ public abstract class MixinServerEntityManager implements RestoreAware {
     public void postRestore() {
         this.entityUuids.clear();
         this.pendingUnloads.clear();
+        this.loadingQueue.clear();
         this.managedStatuses.clear();
         this.trackingStatuses.clear();
         this.cache = new SectionedEntityCache<>(Entity.class, this.trackingStatuses);

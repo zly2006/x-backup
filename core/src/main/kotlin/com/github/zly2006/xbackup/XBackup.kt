@@ -9,6 +9,7 @@ import net.minecraft.server.MinecraftServer
 import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
 import org.jetbrains.exposed.sql.Database
+import org.slf4j.LoggerFactory
 import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteDataSource
 import kotlin.coroutines.CoroutineContext
@@ -16,11 +17,12 @@ import kotlin.io.path.Path
 import kotlin.io.path.absolute
 
 object XBackup : ModInitializer {
+    val log = LoggerFactory.getLogger("XBackup")
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
     val serverStarted get() = ::server.isInitialized
     // Backup
-    var backupRunning = false
+    var isBusy = false
 
     // Restore
     var reason = ""
@@ -49,15 +51,15 @@ object XBackup : ModInitializer {
 
     fun ensureNotBusy(context: CoroutineContext = server.asCoroutineDispatcher(), block: suspend () -> Unit) {
         require(server.isOnThread)
-        if (backupRunning) {
+        if (isBusy) {
             throw SimpleCommandExceptionType(Text.of("Backup is already running")).create()
         }
-        backupRunning = true
+        isBusy = true
         service.launch(context) {
             try {
                 block()
             } finally {
-                backupRunning = false
+                isBusy = false
             }
         }
     }
