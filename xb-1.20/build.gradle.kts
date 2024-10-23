@@ -15,9 +15,19 @@ kotlin {
     jvmToolchain(17)
 }
 
-dependencies {
-    // https://github.com/TISUnion/Carpet-TIS-Addition/issues/177
-//    modImplementation("maven.modrinth:carpet:1.4.128")
-//    modImplementation("maven.modrinth:carpet-tis-addition:v1.63.0-mc1.20.4")
-//    modImplementation("maven.modrinth:lithium:mc1.20.4-0.12.1")
+val tisAddition = false
+
+if (tisAddition) {
+    repositories {
+        maven {
+            url = uri("https://maven.fallenbreath.me/releases")
+        }
+    }
+
+    dependencies {
+        modImplementation("maven.modrinth:carpet:1.4.128")
+        modImplementation("maven.modrinth:carpet-tis-addition:v1.63.0-mc1.20.4")
+        modImplementation("maven.modrinth:lithium:mc1.20.4-0.12.1")
+        modImplementation("me.fallenbreath:conditional-mixin-fabric:0.6.3")
+    }
 }

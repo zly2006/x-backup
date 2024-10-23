@@ -5,6 +5,8 @@ import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 
 object XB120: ModInitializer {
+    @JvmField
+    var isBlockingChunkLoading = false
     override fun onInitialize() {
         CommandRegistrationCallback.EVENT.register { dispatcher, _, _ ->
             Commands.register(dispatcher)
