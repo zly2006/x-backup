@@ -133,10 +133,12 @@ repositories {
 }
 
 dependencies {
+    include(project(":xb-1.21.2"))
     include(project(":xb-1.21"))
     include(project(":xb-1.20"))
     include(project(":core"))
 
+    runtimeOnly(project(":xb-1.21.2", configuration = "namedElements"))
     runtimeOnly(project(":xb-1.21", configuration = "namedElements"))
     runtimeOnly(project(":xb-1.20", configuration = "namedElements"))
 }
