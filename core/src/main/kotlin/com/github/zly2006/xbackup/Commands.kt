@@ -9,6 +9,7 @@ import com.github.zly2006.xbackup.ktdsl.register
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
+import com.mojang.brigadier.context.CommandContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
@@ -18,6 +19,7 @@ import net.minecraft.command.argument.ColumnPosArgumentType
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
+import java.nio.file.Path
 import java.text.SimpleDateFormat
 
 fun literalText(text: String) = CrossVersionText.LiteralText(text)
@@ -93,83 +95,14 @@ object Commands {
                                 val chunk = ColumnPosArgumentType.getColumnPos(it, "chunk")
                                 val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
 
-                                XBackup.reason = "Auto-backup before restoring to #$id"
-                                it.source.server.setAutoSaving(false)
-                                it.source.server.save()
-                                XBackup.disableSaving = true
-                                XBackup.disableWatchdog = true
-                                runBlocking {
-                                    XBackup.service.createBackup(path, "Auto-backup before restoring to #$id") { true }
-                                }
-                                it.source.server.setAutoSaving(true)
-
-                                TODO()
-                                XBackup.ensureNotBusy(
-                                    context = if (it.source.server.isSingleplayer) {
-                                        Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
-                                    } else {
-                                        it.source.server.asCoroutineDispatcher()
-                                    }
-                                ) {
-                                    if (XBackup.service.getBackup(id) == null) {
-                                        it.source.sendError(Text.of("Backup #$id not found"))
-                                        return@ensureNotBusy
-                                    }
-                                    try {
-                                        it.source.server.prepareRestore("Restoring backup #$id")
-
-                                        runBlocking {
-                                            XBackup.reason = "Restoring backup #$id"
-                                            val result = XBackup.service.restore(id, path) { false }
-                                            XBackup.reason = "Restoring backup #$id finished, launching server"
-                                        }
-                                    } finally {
-                                        it.source.server.finishRestore()
-                                        it.source.server.setAutoSaving(true)
-                                    }
-                                }
+                                doRestore(id, it, path, listOf(Pair(chunk.x shr 4, chunk.z shr 4)))
                                 1
                             }
                         }
                     }.executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-
-
-                        XBackup.reason = "Auto-backup before restoring to #$id"
-                        it.source.server.setAutoSaving(false)
-                        it.source.server.save()
-                        XBackup.disableSaving = true
-                        XBackup.disableWatchdog = true
-                        runBlocking {
-                            XBackup.service.createBackup(path, "Auto-backup before restoring to #$id") { true }
-                        }
-                        it.source.server.setAutoSaving(true)
-
-                        XBackup.ensureNotBusy(
-                            context = if (it.source.server.isSingleplayer) {
-                                Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
-                            } else {
-                                it.source.server.asCoroutineDispatcher()
-                            }
-                        ) {
-                            if (XBackup.service.getBackup(id) == null) {
-                                it.source.sendError(Text.of("Backup #$id not found"))
-                                return@ensureNotBusy
-                            }
-                            try {
-                                it.source.server.prepareRestore("Restoring backup #$id")
-
-                                runBlocking {
-                                    XBackup.reason = "Restoring backup #$id"
-                                    val result = XBackup.service.restore(id, path) { false }
-                                    XBackup.reason = "Restoring backup #$id finished, launching server"
-                                }
-                            } finally {
-                                it.source.server.finishRestore()
-                                it.source.server.setAutoSaving(true)
-                            }
-                        }
+                        doRestore(id, it, path)
                         1
                     }
                 }
@@ -258,6 +191,50 @@ object Commands {
                 literal("export") {
 
                 }
+            }
+        }
+    }
+
+    private fun doRestore(
+        id: Int,
+        it: CommandContext<ServerCommandSource>,
+        path: Path,
+        chunks: List<Pair<Int, Int>>? = null
+    ) {
+        XBackup.reason = "Auto-backup before restoring to #$id"
+        it.source.server.save()
+        it.source.server.setAutoSaving(false)
+        XBackup.disableSaving = true
+        XBackup.disableWatchdog = true
+        runBlocking {
+            XBackup.service.createBackup(path, "Auto-backup before restoring to #$id") { true }
+        }
+        it.source.server.setAutoSaving(true)
+        XBackup.disableSaving = false
+
+        XBackup.ensureNotBusy(
+            context = if (it.source.server.isSingleplayer) {
+                Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
+            }
+            else {
+                it.source.server.asCoroutineDispatcher()
+            }
+        ) {
+            if (XBackup.service.getBackup(id) == null) {
+                it.source.sendError(Text.of("Backup #$id not found"))
+                return@ensureNotBusy
+            }
+            try {
+                it.source.server.prepareRestore("Restoring backup #$id")
+
+                runBlocking {
+                    XBackup.reason = "Restoring backup #$id"
+                    val result = XBackup.service.restore(id, path) { false }
+                    XBackup.reason = "Restoring backup #$id finished, launching server"
+                }
+            } finally {
+                it.source.server.finishRestore()
+                it.source.server.setAutoSaving(true)
             }
         }
     }
