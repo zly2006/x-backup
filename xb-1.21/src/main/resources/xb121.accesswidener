@@ -13,3 +13,4 @@ accessible class net/minecraft/server/world/ServerChunkLoadingManager$TicketMana
 accessible class net/minecraft/server/world/ChunkTicketManager$TicketDistanceLevelPropagator
 accessible method net/minecraft/world/ChunkPosDistanceLevelPropagator updateLevel (JIZ)V
 accessible field net/minecraft/world/storage/ChunkPosKeyedStorage worker Lnet/minecraft/world/storage/StorageIoWorker;
+accessible class net/minecraft/world/storage/StorageIoWorker$Result

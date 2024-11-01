@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.github.zly2006.xbackup.mc120.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "MixinChunkLoadingManager",
+    "MixinChunkTaskPrioritySystem",
+    "MixinChunkTicketManager",
+    "MixinDedicatedServerWatchdog",
+    "MixinEntityChunkDataAccess",
+    "MixinLevelPrioritizedQueue",
+    "MixinRegionBasedStorage",
+    "MixinServer",
+    "MixinServerEntityManager",
+    "MixinSPNH",
+    "MixinStorageIoWorker",
+    "MixinWorld",
+    "dev.MixinServerLightingProvider",
+    "disable.MixinStorageIoWorker"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

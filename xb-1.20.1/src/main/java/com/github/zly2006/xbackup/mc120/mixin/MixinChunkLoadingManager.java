@@ -1,29 +1,33 @@
-package com.github.zly2006.xbackup.mc121.mixin;
+package com.github.zly2006.xbackup.mc120.mixin;
 
 import com.github.zly2006.xbackup.multi.RestoreAware;
 import com.mojang.datafixers.DataFixer;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ChunkTaskPrioritySystem;
-import net.minecraft.server.world.ServerChunkLoadingManager;
-import net.minecraft.world.chunk.ChunkLoader;
-import net.minecraft.world.storage.StorageKey;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.server.world.ThreadedAnvilChunkStorage;
 import net.minecraft.world.storage.VersionedChunkStorage;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 
 import java.nio.file.Path;
-import java.util.List;
 
-@Mixin(ServerChunkLoadingManager.class)
+@Mixin(ThreadedAnvilChunkStorage.class)
 public abstract class MixinChunkLoadingManager extends VersionedChunkStorage implements RestoreAware  {
-    @Shadow @Final private ServerChunkLoadingManager.TicketManager ticketManager;
+    @Shadow @Final private ServerWorld world;
+
+    @Shadow @Final private Int2ObjectMap<ThreadedAnvilChunkStorage.EntityTracker> entityTrackers;
+
+    @Shadow protected abstract void unloadEntity(Entity entity);
+
+    @Shadow @Final private ThreadedAnvilChunkStorage.TicketManager ticketManager;
 
     @Shadow @Final public ChunkTaskPrioritySystem chunkTaskPrioritySystem;
 
-    @Shadow @Final private List<ChunkLoader> loaders;
-
-    public MixinChunkLoadingManager(StorageKey storageKey, Path directory, DataFixer dataFixer, boolean dsync) {
-        super(storageKey, directory, dataFixer, dsync);
+    public MixinChunkLoadingManager(Path directory, DataFixer dataFixer, boolean dsync) {
+        super(directory, dataFixer, dsync);
     }
 
     @Override
@@ -31,11 +35,6 @@ public abstract class MixinChunkLoadingManager extends VersionedChunkStorage imp
         ((RestoreAware) this.ticketManager).preRestore();
         ((RestoreAware) this.chunkTaskPrioritySystem).preRestore();
         ((RestoreAware) this.getWorker()).preRestore();
-        // 1.21 only
-        for (ChunkLoader loader : loaders) {
-            loader.markPendingDisposal();
-            loader.run();
-        }
     }
 
     @Override

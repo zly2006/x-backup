@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "x_backup",
-  "version": "${version}",
+  "id": "x_backup_${mc}",
+  "version": "${version}+${mc}",
   "name": "X backup",
   "description": "",
   "authors": [],
@@ -10,23 +10,23 @@
   "icon": "assets/x_backup/icon.png",
   "environment": "*",
   "entrypoints": {
+    "main": [
+      {
+        "adapter": "kotlin",
+        "value": "com.github.zly2006.xbackup.mc120.XB120"
+      }
+    ]
   },
   "mixins": [
+    "x_backup.120.mixins.json"
   ],
+  "accessWidener": "xb120.accesswidener",
   "depends": {
     "fabricloader": "*",
     "fabric-language-kotlin": "*",
     "minecraft": [
-      "1.18.1",
-      "1.18.2",
-      "1.20",
-      "1.20.1",
       "1.20.3",
-      "1.20.4",
-      "1.21",
-      "1.21.1",
-      "1.21.2",
-      "1.21.3"
+      "1.20.4"
     ]
   }
 }

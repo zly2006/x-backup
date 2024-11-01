@@ -1,4 +1,4 @@
-package com.github.zly2006.xbackup.mc121.mixin;
+package com.github.zly2006.xbackup.mc120.mixin;
 
 import com.github.zly2006.xbackup.multi.RestoreAware;
 import net.minecraft.util.math.ChunkPos;
@@ -11,21 +11,13 @@ import org.spongepowered.asm.mixin.Shadow;
 import java.util.Map;
 
 @Mixin(StorageIoWorker.class)
-public abstract class MixinStorageIoWorker implements RestoreAware {
+public class MixinStorageIoWorker implements RestoreAware {
     @Shadow @Final private RegionBasedStorage storage;
 
-    @Shadow @Final private Map<ChunkPos, StorageIoWorker.Result> results;
-
-    @Shadow protected abstract void write(ChunkPos pos, StorageIoWorker.Result result);
+    @Shadow @Final private Map<ChunkPos, Object> results;
 
     @Override
     public void preRestore() {
-//        while (!this.results.isEmpty()) {
-//            Iterator<Map.Entry<ChunkPos, StorageIoWorker.Result>> iterator = this.results.entrySet().iterator();
-//            Map.Entry<ChunkPos, StorageIoWorker.Result> entry = iterator.next();
-//            iterator.remove();
-//            this.write(entry.getKey(), entry.getValue());
-//        }
         results.clear();
         ((RestoreAware) (Object) this.storage).preRestore();
     }

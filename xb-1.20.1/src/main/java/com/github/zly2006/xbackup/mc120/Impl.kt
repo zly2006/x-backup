@@ -14,7 +14,7 @@ import net.minecraft.text.Text
 
 class Impl : MultiVersioned {
     override val implementationTitle: String
-        get() = "XBackup 1.20.4"
+        get() = "XBackup 1.20.1"
 
     override fun parseText(text: CrossVersionText): MutableText {
         return when (text) {
@@ -79,7 +79,7 @@ class Impl : MultiVersioned {
 
             server.runTasks { true }
             while (server.playerManager.playerList.isNotEmpty()) {
-                server.networkIo.tick()
+                server.networkIo?.tick()
                 server.runTasks { true }
             }
 
@@ -96,33 +96,6 @@ class Impl : MultiVersioned {
 
                  }
             }
-
-            if (false) {
-                for (world in server.worlds) {
-                    // remove tickets
-                    world.chunkManager.ticketManager.ticketsByPosition.forEach { p, l ->
-                        l.forEach {
-                            world.chunkManager.ticketManager.removeTicket(p, it)
-                            world.chunkManager.ticketManager.simulationDistanceTracker.remove(p, it)
-                        }
-                    }
-                    world.chunkManager.ticketManager.ticketsByPosition.clear()
-                    world.chunkManager.removePersistentTickets()
-                    // update. enqueue unloading all chunks
-                    world.chunkManager.updateChunks()
-                    world.chunkManager.threadedAnvilChunkStorage.unloadedChunks.addAll(
-                        world.chunkManager.threadedAnvilChunkStorage.loadedChunks
-                    )
-                    world.chunkManager.threadedAnvilChunkStorage.unloadChunks { true }
-                    world.chunkManager.threadedAnvilChunkStorage.currentChunkHolders.clear()
-                    world.chunkManager.threadedAnvilChunkStorage.updateHolderMap()
-
-                    world.entityManager.flush()
-                    println(reasonOfDelayShutdown(world))
-                }
-            }
-
-            println(1)
         }
     }
 
