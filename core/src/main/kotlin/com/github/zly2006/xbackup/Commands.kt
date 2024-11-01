@@ -21,6 +21,9 @@ import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
 import java.nio.file.Path
 import java.text.SimpleDateFormat
+import kotlin.io.path.extension
+import kotlin.math.max
+import kotlin.math.min
 
 fun literalText(text: String) = CrossVersionText.LiteralText(text)
 
@@ -90,13 +93,34 @@ object Commands {
                 literal("restore") {
                     argument("id", IntegerArgumentType.integer(1)) {
                         literal("--chunk") {
-                            argument("chunk", ColumnPosArgumentType.columnPos()).executes {
-                                val id = IntegerArgumentType.getInteger(it, "id")
-                                val chunk = ColumnPosArgumentType.getColumnPos(it, "chunk")
-                                val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-
-                                doRestore(id, it, path, chunks = listOf(Pair(chunk.x shr 4, chunk.z shr 4)))
-                                1
+                            argument("from", ColumnPosArgumentType.columnPos()) {
+                                argument("to", ColumnPosArgumentType.columnPos()).executes {
+                                    val id = IntegerArgumentType.getInteger(it, "id")
+                                    val from = ColumnPosArgumentType.getColumnPos(it, "from")
+                                    val to = ColumnPosArgumentType.getColumnPos(it, "to")
+                                    val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
+                                    val world = it.source.world
+                                    doRestore(id, it, path) {
+                                        val p = path.resolve(it).normalize()
+                                        if (!Utils.service.isFileInWorld(world, p)) {
+                                            return@doRestore false
+                                        }
+                                        if (p.extension == "mca") {
+                                            val x = p.fileName.toString().split(".")[1].toInt()
+                                            val z = p.fileName.toString().split(".")[2].toInt()
+                                            return@doRestore (x shr 9) >= min((from.x shr 9), (to.x shr 9)) && (x shr 9) <= max((from.x shr 9), (to.x shr 9)) && (z shr 9) >= min((from.z shr 9), (to.z shr 9)) && (z shr 9) <= max((from.z shr 9), (to.z shr 9))
+                                        }
+                                        else if (p.extension == "mcc") {
+                                            val x = p.fileName.toString().split(".")[1].toInt()
+                                            val z = p.fileName.toString().split(".")[2].toInt()
+                                            return@doRestore (x shr 4) >= min((from.x shr 4), (to.x shr 4)) && (x shr 4) <= max((from.x shr 4), (to.x shr 4)) && (z shr 4) >= min((from.z shr 4), (to.z shr 4)) && (z shr 4) <= max((from.z shr 4), (to.z shr 4))
+                                        }
+                                        else {
+                                            return@doRestore false
+                                        }
+                                    }
+                                    1
+                                }
                             }
                         }
                         literal("--stop").executes {
@@ -206,7 +230,7 @@ object Commands {
         it: CommandContext<ServerCommandSource>,
         path: Path,
         forceStop: Boolean = false,
-        chunks: List<Pair<Int, Int>>? = null
+        filter: (Path) -> Boolean = { true },
     ) {
         XBackup.reason = "Auto-backup before restoring to #$id"
         it.source.server.save()
@@ -234,14 +258,14 @@ object Commands {
             try {
                 it.source.server.prepareRestore("Restoring backup #$id")
                 if (forceStop) {
-                    XBackup.service.restore(id, path) { false }
+                    XBackup.service.restore(id, path) { !filter(it) }
                     it.source.server.stop(false)
                     return@ensureNotBusy
                 }
 
                 runBlocking {
                     XBackup.reason = "Restoring backup #$id"
-                    val result = XBackup.service.restore(id, path) { false }
+                    val result = XBackup.service.restore(id, path) { !filter(it) }
                     XBackup.reason = "Restoring backup #$id finished, launching server"
                 }
             } finally {

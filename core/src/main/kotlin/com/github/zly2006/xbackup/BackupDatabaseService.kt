@@ -271,7 +271,7 @@ class BackupDatabaseService(
         coroutineScope {
             dbQuery {
                 val backup = getBackup(id) ?: error("Backup not found")
-                val map = backup.entries.associateBy { it.path }
+                val map = backup.entries.associateBy { it.path }.filter { !ignored(Path(it.key)) }
                 for (it in target.toFile().walk()) {
                     val path = target.normalize().relativize(it.toPath()).normalize()
                     if (it.name in ignoredFiles || ignored(path))
@@ -322,6 +322,7 @@ class BackupDatabaseService(
                                 }
                                 require(path.fileSize() == it.value.size)
                                 path.toFile().setLastModified(it.value.lastModified)
+                                XBackup.log.info("Restored file ${it.key}")
                             }
                         }
                     }

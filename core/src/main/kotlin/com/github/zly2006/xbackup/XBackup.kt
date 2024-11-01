@@ -1,5 +1,6 @@
 package com.github.zly2006.xbackup
 
+import RestartUtils
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
@@ -7,6 +8,7 @@ import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.minecraft.server.MinecraftServer
 import net.minecraft.text.Text
+import net.minecraft.util.Util
 import net.minecraft.util.WorldSavePath
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
@@ -31,6 +33,20 @@ object XBackup : ModInitializer {
     var disableWatchdog = false
 
     override fun onInitialize() {
+        if (System.getProperty("xb.restart") == "true") {
+            when (Util.getOperatingSystem()) {
+                Util.OperatingSystem.OSX, Util.OperatingSystem.LINUX -> {
+                    ProcessBuilder(RestartUtils.generateUnixRestartCommand())
+                        .start()
+                }
+                else -> {
+                    error("Unsupported operating system")
+                }
+            }
+
+            log.info("Restarting...")
+            Runtime.getRuntime().exit(0)
+        }
         ServerLifecycleEvents.SERVER_STARTED.register {
             this.server = it
             val path = it.getSavePath(WorldSavePath.ROOT).toAbsolutePath()

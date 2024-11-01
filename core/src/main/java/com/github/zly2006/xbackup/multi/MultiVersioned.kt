@@ -3,7 +3,9 @@ package com.github.zly2006.xbackup.multi
 import com.github.zly2006.xbackup.CrossVersionText
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
+import net.minecraft.server.world.ServerWorld
 import net.minecraft.text.Text
+import java.nio.file.Path
 
 interface MultiVersioned {
     val implementationTitle: String
@@ -19,4 +21,6 @@ interface MultiVersioned {
     fun prepareRestore(server: MinecraftServer, reason: String)
 
     fun finishRestore(server: MinecraftServer)
+
+    fun isFileInWorld(world: ServerWorld, p: Path): Boolean
 }

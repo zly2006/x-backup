@@ -6,7 +6,7 @@ import net.minecraft.server.command.ServerCommandSource
 import java.util.*
 
 object Utils {
-    private val service by lazy {
+    val service by lazy {
         ServiceLoader.load(MultiVersioned::class.java).single()
     }
 

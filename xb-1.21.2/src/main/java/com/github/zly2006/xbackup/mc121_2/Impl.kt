@@ -11,6 +11,9 @@ import net.minecraft.text.ClickEvent
 import net.minecraft.text.HoverEvent
 import net.minecraft.text.MutableText
 import net.minecraft.text.Text
+import net.minecraft.util.WorldSavePath
+import net.minecraft.world.dimension.DimensionType
+import java.nio.file.Path
 
 class Impl : MultiVersioned {
     override val implementationTitle: String
@@ -148,5 +151,13 @@ class Impl : MultiVersioned {
                 }
             }
         }
+    }
+
+    override fun isFileInWorld(world: ServerWorld, p: Path): Boolean {
+        val path = DimensionType.getSaveDirectory(
+            world.registryKey,
+            world.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+        ).normalize()
+        return p.normalize().startsWith(path)
     }
 }

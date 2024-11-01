@@ -17,3 +17,5 @@ accessible class net/minecraft/server/world/ChunkTicketManager$TicketDistanceLev
 accessible class net/minecraft/server/world/ThreadedAnvilChunkStorage$TicketManager
 accessible class net/minecraft/server/world/ServerLightingProvider$Stage
 accessible class net/minecraft/server/world/ServerChunkManager$MainThreadExecutor
+accessible field net/minecraft/util/math/ColumnPos x I
+accessible field net/minecraft/util/math/ColumnPos z I
