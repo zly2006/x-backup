@@ -95,9 +95,15 @@ object Commands {
                                 val chunk = ColumnPosArgumentType.getColumnPos(it, "chunk")
                                 val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
 
-                                doRestore(id, it, path, listOf(Pair(chunk.x shr 4, chunk.z shr 4)))
+                                doRestore(id, it, path, chunks = listOf(Pair(chunk.x shr 4, chunk.z shr 4)))
                                 1
                             }
+                        }
+                        literal("--stop").executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                            doRestore(id, it, path, forceStop = true)
+                            1
                         }
                     }.executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
@@ -199,6 +205,7 @@ object Commands {
         id: Int,
         it: CommandContext<ServerCommandSource>,
         path: Path,
+        forceStop: Boolean = false,
         chunks: List<Pair<Int, Int>>? = null
     ) {
         XBackup.reason = "Auto-backup before restoring to #$id"
@@ -226,6 +233,11 @@ object Commands {
             }
             try {
                 it.source.server.prepareRestore("Restoring backup #$id")
+                if (forceStop) {
+                    XBackup.service.restore(id, path) { false }
+                    it.source.server.stop(false)
+                    return@ensureNotBusy
+                }
 
                 runBlocking {
                     XBackup.reason = "Restoring backup #$id"

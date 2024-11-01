@@ -7,7 +7,6 @@ accessible method net/minecraft/server/world/ThreadedAnvilChunkStorage updateHol
 accessible field net/minecraft/server/world/ServerChunkManager ticketManager Lnet/minecraft/server/world/ChunkTicketManager;
 accessible field net/minecraft/server/world/ChunkTicketManager ticketsByPosition Lit/unimi/dsi/fastutil/longs/Long2ObjectOpenHashMap;
 accessible method net/minecraft/server/world/ChunkTicketManager removeTicket (JLnet/minecraft/server/world/ChunkTicket;)V
-accessible method net/minecraft/server/world/ServerChunkManager updateChunks ()Z
 accessible field net/minecraft/server/world/ServerWorld entityManager Lnet/minecraft/server/world/ServerEntityManager;
 accessible field net/minecraft/server/world/ThreadedAnvilChunkStorage unloadTaskQueue Ljava/util/Queue;
 accessible field net/minecraft/server/world/ThreadedAnvilChunkStorage chunkTaskPrioritySystem Lnet/minecraft/server/world/ChunkTaskPrioritySystem;

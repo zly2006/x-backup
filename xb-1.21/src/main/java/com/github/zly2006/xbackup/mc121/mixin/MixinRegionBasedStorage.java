@@ -14,11 +14,25 @@ public class MixinRegionBasedStorage implements RestoreAware {
 
     @Override
     public void preRestore() {
+        cachedRegionFiles.forEach((k, v) -> {
+            try {
+                v.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
         cachedRegionFiles.clear();
     }
 
     @Override
     public void postRestore() {
+        cachedRegionFiles.forEach((k, v) -> {
+            try {
+                v.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
         cachedRegionFiles.clear();
     }
 }
