@@ -15,9 +15,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ConcurrentModificationException;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.SequencedMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 public abstract class MixinStorageIoWorker implements RestoreAware {
     @Shadow @Final private RegionBasedStorage storage;
 
-    @Shadow @Final private Map<ChunkPos, Object> results;
+    @Shadow @Final private SequencedMap<ChunkPos, Object> results;
 
     @Shadow @Final private PrioritizedConsecutiveExecutor executor;
 
