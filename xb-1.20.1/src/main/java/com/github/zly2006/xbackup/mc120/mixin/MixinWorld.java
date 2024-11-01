@@ -13,10 +13,15 @@ import org.spongepowered.asm.mixin.Shadow;
 public class MixinWorld implements RestoreAware {
     @Shadow @Final private ServerChunkManager chunkManager;
 
-    @Shadow @Final private ServerEntityManager<Entity> entityManager;
+    @Shadow @Final public ServerEntityManager<Entity> entityManager;
+
+    @Shadow public boolean savingDisabled;
 
     @Override
     public void preRestore() {
+        savingDisabled = false;
+        chunkManager.removePersistentTickets();
+        chunkManager.tick(() -> true, false);
         ((RestoreAware) this.entityManager).preRestore();
         ((RestoreAware) this.chunkManager.threadedAnvilChunkStorage).preRestore();
     }

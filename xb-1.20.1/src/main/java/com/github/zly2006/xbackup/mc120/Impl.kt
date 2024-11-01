@@ -87,9 +87,6 @@ class Impl : MultiVersioned {
             {
                 for (serverWorldx in server.worlds) {
                     (serverWorldx as RestoreAware).preRestore()
-                    serverWorldx.savingDisabled = false
-                    serverWorldx.chunkManager.removePersistentTickets()
-                    serverWorldx.chunkManager.tick({ true }, false)
                 }
 
                  while (server.runTask()) {

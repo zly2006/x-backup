@@ -16,3 +16,4 @@ accessible method net/minecraft/world/ChunkPosDistanceLevelPropagator updateLeve
 accessible class net/minecraft/server/world/ChunkTicketManager$TicketDistanceLevelPropagator
 accessible class net/minecraft/server/world/ThreadedAnvilChunkStorage$TicketManager
 accessible class net/minecraft/server/world/ServerLightingProvider$Stage
+accessible class net/minecraft/server/world/ServerChunkManager$MainThreadExecutor

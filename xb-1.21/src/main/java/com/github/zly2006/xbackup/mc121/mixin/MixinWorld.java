@@ -15,8 +15,13 @@ public class MixinWorld implements RestoreAware {
 
     @Shadow @Final private ServerEntityManager<Entity> entityManager;
 
+    @Shadow public boolean savingDisabled;
+
     @Override
     public void preRestore() {
+        savingDisabled = false;
+        chunkManager.removePersistentTickets();
+        chunkManager.tick(() -> true, false);
         ((RestoreAware) this.entityManager).preRestore();
         ((RestoreAware) this.chunkManager.chunkLoadingManager).preRestore();
     }

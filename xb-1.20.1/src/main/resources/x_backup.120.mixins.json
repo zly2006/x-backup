@@ -12,6 +12,7 @@
     "MixinLevelPrioritizedQueue",
     "MixinRegionBasedStorage",
     "MixinServer",
+    "MixinServerChunkManager",
     "MixinServerEntityManager",
     "MixinSPNH",
     "MixinStorageIoWorker",

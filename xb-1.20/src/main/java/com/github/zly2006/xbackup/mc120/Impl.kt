@@ -87,42 +87,12 @@ class Impl : MultiVersioned {
             {
                 for (serverWorldx in server.worlds) {
                     (serverWorldx as RestoreAware).preRestore()
-                    serverWorldx.savingDisabled = false
-                    serverWorldx.chunkManager.removePersistentTickets()
-                    serverWorldx.chunkManager.tick({ true }, false)
                 }
 
                  while (server.runTask()) {
 
                  }
             }
-
-            if (false) {
-                for (world in server.worlds) {
-                    // remove tickets
-                    world.chunkManager.ticketManager.ticketsByPosition.forEach { p, l ->
-                        l.forEach {
-                            world.chunkManager.ticketManager.removeTicket(p, it)
-                            world.chunkManager.ticketManager.simulationDistanceTracker.remove(p, it)
-                        }
-                    }
-                    world.chunkManager.ticketManager.ticketsByPosition.clear()
-                    world.chunkManager.removePersistentTickets()
-                    // update. enqueue unloading all chunks
-                    world.chunkManager.updateChunks()
-                    world.chunkManager.threadedAnvilChunkStorage.unloadedChunks.addAll(
-                        world.chunkManager.threadedAnvilChunkStorage.loadedChunks
-                    )
-                    world.chunkManager.threadedAnvilChunkStorage.unloadChunks { true }
-                    world.chunkManager.threadedAnvilChunkStorage.currentChunkHolders.clear()
-                    world.chunkManager.threadedAnvilChunkStorage.updateHolderMap()
-
-                    world.entityManager.flush()
-                    println(reasonOfDelayShutdown(world))
-                }
-            }
-
-            println(1)
         }
     }
 
