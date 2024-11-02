@@ -28,6 +28,7 @@ object RestartUtils {
             add(jre)
             add("-cp")
             add(cp)
+            add("-XstartOnFirstThread")
             addAll(arguments)
             addAll(mainClass.split(" "))
         }

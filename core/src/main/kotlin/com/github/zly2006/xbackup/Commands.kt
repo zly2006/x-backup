@@ -233,19 +233,19 @@ object Commands {
                                     ProcessBuilder(
                                         RestartUtils.generateWindowsRestartCommand()
                                     ).start()
-                                    exitProcess(0)
                                 }
                                 Util.OperatingSystem.LINUX, Util.OperatingSystem.OSX -> {
                                     it.source.server.stop(true)
                                     ProcessBuilder(
                                         RestartUtils.generateUnixRestartCommand()
                                     ).start()
-                                    exitProcess(0)
                                 }
                                 else -> {
                                     return@Thread
                                 }
                             }
+                            XBackup.log.info("[X Backup] Your game will restart soon...")
+                            exitProcess(0)
                         }.start()
                         1
                     }
