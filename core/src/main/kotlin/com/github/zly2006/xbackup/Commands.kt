@@ -1,5 +1,6 @@
 package com.github.zly2006.xbackup
 
+import RestartUtils
 import com.github.zly2006.xbackup.Utils.finishRestore
 import com.github.zly2006.xbackup.Utils.prepareRestore
 import com.github.zly2006.xbackup.Utils.save
@@ -18,12 +19,14 @@ import kotlinx.serialization.json.Json
 import net.minecraft.command.argument.ColumnPosArgumentType
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
+import net.minecraft.util.Util
 import net.minecraft.util.WorldSavePath
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 import kotlin.io.path.extension
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.system.exitProcess
 
 fun literalText(text: String) = CrossVersionText.LiteralText(text)
 
@@ -220,6 +223,32 @@ object Commands {
                 }
                 literal("export") {
 
+                }
+                literal("restart") {
+                    executes {
+                        Thread {
+                            when (Util.getOperatingSystem()) {
+                                Util.OperatingSystem.WINDOWS -> {
+                                    it.source.server.stop(true)
+                                    ProcessBuilder(
+                                        RestartUtils.generateWindowsRestartCommand()
+                                    ).start()
+                                    exitProcess(0)
+                                }
+                                Util.OperatingSystem.LINUX, Util.OperatingSystem.OSX -> {
+                                    it.source.server.stop(true)
+                                    ProcessBuilder(
+                                        RestartUtils.generateUnixRestartCommand()
+                                    ).start()
+                                    exitProcess(0)
+                                }
+                                else -> {
+                                    return@Thread
+                                }
+                            }
+                        }.start()
+                        1
+                    }
                 }
             }
         }
