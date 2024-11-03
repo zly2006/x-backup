@@ -29,4 +29,8 @@ object Utils {
     fun MinecraftServer.finishRestore() {
         service.finishRestore(this)
     }
+
+    fun MinecraftServer.broadcast(text: CrossVersionText) {
+        service.broadcast(this, text)
+    }
 }

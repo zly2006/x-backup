@@ -58,6 +58,10 @@ class Impl : MultiVersioned {
         source.sendFeedback({ parseText(text) }, broadcastToOps)
     }
 
+    override fun broadcast(server: MinecraftServer, text: CrossVersionText) {
+        server.playerManager.broadcast(parseText(text), false)
+    }
+
     override fun save(server: MinecraftServer) {
         server.saveAll(false, false, true)
     }

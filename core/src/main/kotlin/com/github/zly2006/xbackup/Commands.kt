@@ -1,6 +1,7 @@
 package com.github.zly2006.xbackup
 
 import RestartUtils
+import com.github.zly2006.xbackup.Utils.broadcast
 import com.github.zly2006.xbackup.Utils.finishRestore
 import com.github.zly2006.xbackup.Utils.prepareRestore
 import com.github.zly2006.xbackup.Utils.save
@@ -59,14 +60,19 @@ object Commands {
                                 "Manual backup"
                             }
                             XBackup.ensureNotBusy {
+                                it.source.server.broadcast(
+                                    literalText(
+                                        "${it.source.name} is creating a backup, this may take a while..."
+                                    )
+                                )
                                 it.source.server.save()
                                 it.source.server.setAutoSaving(false)
                                 XBackup.disableSaving = true
                                 val result =
                                     XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
-                                it.source.send(
+                                it.source.server.broadcast(
                                     literalText(
-                                        "Backup #${result.backId} finished, ${sizeToString(result.totalSize)} " +
+                                        "Backup #${result.backId} by ${it.source.name} finished, ${sizeToString(result.totalSize)} " +
                                                 "(${sizeToString(result.compressedSize)} after compression) " +
                                                 "+${sizeToString(result.addedSize)} " +
                                                 "in ${result.millis}ms"

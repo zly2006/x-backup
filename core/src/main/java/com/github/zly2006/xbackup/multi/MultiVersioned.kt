@@ -23,4 +23,6 @@ interface MultiVersioned {
     fun finishRestore(server: MinecraftServer)
 
     fun isFileInWorld(world: ServerWorld, p: Path): Boolean
+
+    fun broadcast(server: MinecraftServer, text: CrossVersionText)
 }
