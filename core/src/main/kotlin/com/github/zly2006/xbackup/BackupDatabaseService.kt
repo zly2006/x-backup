@@ -2,14 +2,18 @@ package com.github.zly2006.xbackup
 
 import com.github.zly2006.xbackup.BackupDatabaseService.BackupEntryTable
 import com.github.zly2006.xbackup.BackupDatabaseService.BackupTable
+import com.microsoft.graph.requests.GraphServiceClient
 import kotlinx.coroutines.*
+import kotlinx.coroutines.future.await
 import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
+import okhttp3.Request
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.io.InputStream
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -50,6 +54,7 @@ class BackupDatabaseService(
         val isDirectory = bool("is_directory")
         val hash = varchar("hash", 255).index()
         val gzip = bool("gzip")
+        val cloudDriveId = byte("cloud_drive_id").default(0)
     }
 
     object BackupTable : IntIdTable("backups") {
@@ -74,6 +79,7 @@ class BackupDatabaseService(
         val isDirectory: Boolean,
         val hash: String,
         val gzip: Boolean,
+        val cloudDriveId: Byte?,
     )
 
     @Serializable
@@ -134,7 +140,7 @@ class BackupDatabaseService(
                             }.firstOrNull()?.toBackupEntry()
                         }?.let { return@retry it }
 
-                        val blob = blobDir.resolve(md5.take(2)).resolve(md5.drop(2))
+                        val blob = getBlobFile(md5)
                         val gzip = sourceFile.length() > 1024
                         val zippedSize: Long
                         if (sourceFile.isFile) {
@@ -245,7 +251,7 @@ class BackupDatabaseService(
                                 (BackupEntryBackupTable.backup neq id)
                     }.empty()
                 ) {
-                    blobDir.resolve(entry.hash.take(2)).resolve(entry.hash.drop(2)).toFile().delete()
+                    getBlobFile(entry.hash).toFile().delete()
                     BackupEntryTable.deleteWhere {
                         BackupEntryTable.id eq entry.id
                     }
@@ -253,6 +259,32 @@ class BackupDatabaseService(
             }
             BackupTable.deleteWhere { BackupTable.id eq id }
         }
+    }
+
+    lateinit var client: GraphServiceClient<Request>
+
+    suspend fun uploadOneDrive(id: Int) {
+        val backup = getBackup(id) ?: error("Backup not found")
+        backup.entries.filter { it.cloudDriveId == null }.map { entry ->
+            client.me().drive().root().itemWithPath("X-Backup/blob/${entry.hash}")
+                .content()
+                .buildRequest()
+                .putAsync(getBlobFile(entry.hash).readBytes())
+                .thenApply {
+                    GlobalScope.launch {
+                        dbQuery {
+                            BackupEntryTable.update({ BackupEntryTable.id eq entry.id }) {
+                                it[cloudDriveId] = 1
+                            }
+                            getBlobFile(entry.hash).toFile().delete()
+                        }
+                    }
+                }
+        }.map { it.await() }.joinAll()
+    }
+
+    fun getBlobFile(hash: String): Path {
+        return blobDir.resolve(hash.take(2)).resolve(hash.drop(2))
     }
 
     suspend fun getBackup(id: Int): Backup? = dbQuery {
@@ -295,11 +327,25 @@ class BackupDatabaseService(
                                 if (!path.exists()) {
                                     path.createParentDirectories().createFile()
                                 }
-                                val blob = blobDir.resolve(it.value.hash.take(2)).resolve(it.value.hash.drop(2))
+                                val blob = getBlobFile(it.value.hash)
+                                val blobInput: InputStream
+                                if (!blob.exists()) {
+                                    if (it.value.cloudDriveId != null) {
+                                        blobInput = client.me().drive().root().itemWithPath("X-Backup/blob/${it.value.hash}")
+                                            .content()
+                                            .buildRequest()
+                                            .get()!!
+                                    }
+                                    else {
+                                        XBackup.log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
+                                        return@retry
+                                    }
+                                }
+                                else {
+                                    blobInput = blob.toFile().inputStream().buffered()
+                                }
                                 path.outputStream().buffered().use { output ->
-                                    val input =
-                                        if (it.value.gzip) GZIPInputStream(blob.toFile().inputStream().buffered())
-                                        else blob.toFile().inputStream().buffered()
+                                    val input = if (it.value.gzip) GZIPInputStream(blobInput) else blobInput
                                     // copy
                                     input.use {
                                         it.copyTo(output)
@@ -369,4 +415,5 @@ private fun ResultRow.toBackupEntry() = BackupDatabaseService.BackupEntry(
     this[BackupEntryTable.isDirectory],
     this[BackupEntryTable.hash],
     this[BackupEntryTable.gzip],
+    this[BackupEntryTable.cloudDriveId].let { if (it == 0.toByte()) null else it },
 )

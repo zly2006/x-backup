@@ -4,17 +4,12 @@
 // <ImportSnippet>
 package com.github.zly2006.xbackup.multi;
 
+import com.microsoft.graph.models.User;
+
 import java.io.IOException;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.InputMismatchException;
 import java.util.Properties;
 import java.util.Scanner;
-
-import com.microsoft.graph.models.Message;
-import com.microsoft.graph.models.User;
-import com.microsoft.graph.requests.MessageCollectionPage;
 // </ImportSnippet>
 
 public class App {
@@ -45,7 +40,7 @@ public class App {
             System.out.println("1. Display access token");
             System.out.println("2. List my inbox");
             System.out.println("3. Send mail");
-            System.out.println("4. Make a Graph call");
+            System.out.println("4. OneDrive list files");
 
             try {
                 choice = input.nextInt();
@@ -64,14 +59,6 @@ public class App {
                 case 1:
                     // Display access token
                     displayAccessToken();
-                    break;
-                case 2:
-                    // List emails from user's inbox
-                    listInbox();
-                    break;
-                case 3:
-                    // Send an email message
-                    sendMail();
                     break;
                 case 4:
                     // Run any Graph code
@@ -125,54 +112,10 @@ public class App {
             System.out.println(e.getMessage());
         }
     }
-    // </DisplayAccessTokenSnippet>
 
-    // <ListInboxSnippet>
-    private static void listInbox() {
-        try {
-            final MessageCollectionPage messages = Graph.getInbox();
-
-            // Output each message's details
-            for (Message message: messages.getCurrentPage()) {
-                System.out.println("Message: " + message.subject);
-                System.out.println("  From: " + message.from.emailAddress.name);
-                System.out.println("  Status: " + (message.isRead ? "Read" : "Unread"));
-                System.out.println("  Received: " + message.receivedDateTime
-                    // Values are returned in UTC, convert to local time zone
-                    .atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime()
-                    .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)));
-            }
-
-            final Boolean moreMessagesAvailable = messages.getNextPage() != null;
-            System.out.println("\nMore messages available? " + moreMessagesAvailable);
-        } catch (Exception e) {
-            System.out.println("Error getting inbox");
-            System.out.println(e.getMessage());
-        }
-    }
-    // </ListInboxSnippet>
-
-    // <SendMailSnippet>
-    private static void sendMail() {
-        try {
-            // Send mail to the signed-in user
-            // Get the user for their email address
-            final User user = Graph.getUser();
-            final String email = user.mail == null ? user.userPrincipalName : user.mail;
-
-            Graph.sendMail("Testing Microsoft Graph", "Hello world!", email);
-            System.out.println("\nMail sent.");
-        } catch (Exception e) {
-            System.out.println("Error sending mail");
-            System.out.println(e.getMessage());
-        }
-    }
-    // </SendMailSnippet>
-
-    // <MakeGraphCallSnippet>
     private static void makeGraphCall() {
         try {
-            Graph.makeGraphCall();
+            Graph.listOneDriveFiles();
         } catch (Exception e) {
             System.out.println("Error making Graph call");
             System.out.println(e.getMessage());

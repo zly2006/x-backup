@@ -1,142 +1,156 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT license.
-
 // <ImportSnippet>
-package com.github.zly2006.xbackup.multi;
+package com.github.zly2006.xbackup.multi
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Properties;
-import java.util.function.Consumer;
+import com.azure.core.credential.TokenRequestContext
+import com.azure.identity.*
+import com.microsoft.graph.authentication.TokenCredentialAuthProvider
+import com.microsoft.graph.http.GraphServiceException
+import com.microsoft.graph.logger.LoggerLevel
+import com.microsoft.graph.models.*
+import com.microsoft.graph.requests.GraphServiceClient
+import okhttp3.Request
+import reactor.core.publisher.Mono
+import java.io.*
+import java.io.File
+import java.nio.file.Files
+import java.util.*
+import java.util.function.Consumer
 
-import com.azure.core.credential.AccessToken;
-import com.azure.core.credential.TokenRequestContext;
-import com.azure.identity.DeviceCodeCredential;
-import com.azure.identity.DeviceCodeCredentialBuilder;
-import com.azure.identity.DeviceCodeInfo;
-import com.microsoft.graph.authentication.TokenCredentialAuthProvider;
-import com.microsoft.graph.models.*;
-import com.microsoft.graph.requests.GraphServiceClient;
-import com.microsoft.graph.requests.MessageCollectionPage;
+object Graph {
+    private var _properties: Properties? = null
+    private var _deviceCodeCredential: DeviceCodeCredential? = null
+    private var _userClient: GraphServiceClient<Request>? = null
+    private val scopes = listOf(
+        "user.read",
+        "Files.ReadWrite.All"
+    )
 
-import okhttp3.Request;
-// </ImportSnippet>
-
-public class Graph {
-    // <UserAuthConfigSnippet>
-    private static Properties _properties;
-    private static DeviceCodeCredential _deviceCodeCredential;
-    private static GraphServiceClient<Request> _userClient;
-
-    public static void initializeGraphForUserAuth(Properties properties, Consumer<DeviceCodeInfo> challenge) throws Exception {
+    @JvmStatic
+    @Throws(Exception::class)
+    fun initializeGraphForUserAuth(properties: Properties?, challenge: Consumer<DeviceCodeInfo?>?) {
         // Ensure properties isn't null
         if (properties == null) {
-            throw new Exception("Properties cannot be null");
+            throw Exception("Properties cannot be null")
         }
 
-        _properties = properties;
+        _properties = properties
 
-        final String clientId = properties.getProperty("app.clientId");
-        final String tenantId = properties.getProperty("app.tenantId");
-        final List<String> graphUserScopes = Arrays
-            .asList(properties.getProperty("app.graphUserScopes").split(","));
+        val clientId = properties.getProperty("app.clientId")
+        val tenantId = properties.getProperty("app.tenantId")
+        val graphUserScopes = scopes
 
-        _deviceCodeCredential = new DeviceCodeCredentialBuilder()
-            .clientId(clientId)
-            .tenantId(tenantId)
-            .challengeConsumer(challenge)
-            .build();
+        val authenticationRecordPath = "path/to/authentication-record.json"
+        var authenticationRecord: AuthenticationRecord? = null
+        try {
+            // If we have an existing record, deserialize it.
+            if (Files.exists(File(authenticationRecordPath).toPath())) {
+                authenticationRecord = AuthenticationRecord.deserialize(FileInputStream(authenticationRecordPath))
+            }
+        } catch (e: FileNotFoundException) {
+            // Handle error as appropriate.
+        }
 
-        final TokenCredentialAuthProvider authProvider =
-            new TokenCredentialAuthProvider(graphUserScopes, _deviceCodeCredential);
+        val builder = DeviceCodeCredentialBuilder().clientId(clientId).tenantId(tenantId)
+        if (authenticationRecord != null) {
+            // As we have a record, configure the builder to use it.
+            builder.authenticationRecord(authenticationRecord)
+        }
+        _deviceCodeCredential = builder.build()
+        val trc = TokenRequestContext().addScopes(*scopes.toTypedArray())
+        if (authenticationRecord == null) {
+            // We don't have a record, so we get one and store it. The next authentication will use it.
+            _deviceCodeCredential!!.authenticate(trc).flatMap { record: AuthenticationRecord ->
+                try {
+                    return@flatMap record.serializeAsync(FileOutputStream(authenticationRecordPath))
+                } catch (e: FileNotFoundException) {
+                    return@flatMap Mono.error<OutputStream>(e)
+                }
+            }.subscribe()
+        }
+
+        val authProvider =
+            TokenCredentialAuthProvider(graphUserScopes, _deviceCodeCredential!!)
 
         _userClient = GraphServiceClient.builder()
             .authenticationProvider(authProvider)
-            .buildClient();
-    }
-    // </UserAuthConfigSnippet>
+            .buildClient()
 
-    // <GetUserTokenSnippet>
-    public static String getUserToken() throws Exception {
-        // Ensure credential isn't null
-        if (_deviceCodeCredential == null) {
-            throw new Exception("Graph has not been initialized for user auth");
+        _userClient!!.logger!!.loggingLevel = LoggerLevel.DEBUG
+    }
+
+    @JvmStatic
+    @get:Throws(Exception::class)
+    val userToken: String
+        get() {
+            if (_deviceCodeCredential == null) {
+                error("Graph has not been initialized for user auth")
+            }
+
+            val context = TokenRequestContext()
+            context.addScopes(*scopes.toTypedArray())
+
+            val token = _deviceCodeCredential!!.getToken(context).block()
+            return token.token
         }
 
-        final String[] graphUserScopes = _properties.getProperty("app.graphUserScopes").split(",");
+    @JvmStatic
+    @get:Throws(Exception::class)
+    val user: User?
+        // </GetUserTokenSnippet>
+        get() {
+            // Ensure client isn't null
+            if (_userClient == null) {
+                error("Graph has not been initialized for user auth")
+            }
 
-        final TokenRequestContext context = new TokenRequestContext();
-        context.addScopes(graphUserScopes);
-
-        final AccessToken token = _deviceCodeCredential.getToken(context).block();
-        return token.getToken();
-    }
-    // </GetUserTokenSnippet>
-
-    // <GetUserSnippet>
-    public static User getUser() throws Exception {
-        // Ensure client isn't null
-        if (_userClient == null) {
-            throw new Exception("Graph has not been initialized for user auth");
+            return _userClient!!.me()
+                .buildRequest()
+                .select("displayName,mail,userPrincipalName")
+                .get()
         }
 
-        return _userClient.me()
+    private fun initXBackupDirectory() {
+        val item = try {
+            requireNotNull(_userClient) { "Graph has not been initialized for user auth" }
+                .me()
+                .drive()
+                .root()
+                .itemWithPath("X-Backup")
+                .buildRequest()
+                .get()
+        } catch (e: GraphServiceException) {
+            if (e.error?.error?.code == "itemNotFound") {
+                requireNotNull(_userClient) { "Graph has not been initialized for user auth" }
+                    .me()
+                    .drive()
+                    .root()
+                    .children()
+                    .buildRequest()
+                    .post(DriveItem().apply {
+                        name = "X-Backup"
+                        folder = Folder()
+                    })
+            }
+            else throw e
+        }
+        requireNotNull(item) { "Failed to create X-Backup directory" }
+        _userClient!!.me()
+            .drive()
+            .root()
+            .itemWithPath("X-Backup/test.txt")
+            .content()
             .buildRequest()
-            .select("displayName,mail,userPrincipalName")
-            .get();
+            .put("Hello, World!".encodeToByteArray())
+        item.children?.currentPage
+        item.remoteItem
     }
-    // </GetUserSnippet>
 
-    // <GetInboxSnippet>
-    public static MessageCollectionPage getInbox() throws Exception {
-        // Ensure client isn't null
-        if (_userClient == null) {
-            throw new Exception("Graph has not been initialized for user auth");
-        }
+    @JvmStatic
+    fun listOneDriveFiles() {
+        requireNotNull(_userClient) { "Graph has not been initialized for user auth" }
 
-        return _userClient.me()
-            .mailFolders("inbox")
-            .messages()
-            .buildRequest()
-            .select("from,isRead,receivedDateTime,subject")
-            .top(25)
-            .orderBy("receivedDateTime DESC")
-            .get();
+        initXBackupDirectory()
     }
-    // </GetInboxSnippet>
-
-    // <SendMailSnippet>
-    public static void sendMail(String subject, String body, String recipient) throws Exception {
-        // Ensure client isn't null
-        if (_userClient == null) {
-            throw new Exception("Graph has not been initialized for user auth");
-        }
-
-        // Create a new message
-        final Message message = new Message();
-        message.subject = subject;
-        message.body = new ItemBody();
-        message.body.content = body;
-        message.body.contentType = BodyType.TEXT;
-
-        final Recipient toRecipient = new Recipient();
-        toRecipient.emailAddress = new EmailAddress();
-        toRecipient.emailAddress.address = recipient;
-        message.toRecipients = List.of(toRecipient);
-
-        // Send the message
-        _userClient.me()
-            .sendMail(UserSendMailParameterSet.newBuilder()
-                .withMessage(message)
-                .build())
-            .buildRequest()
-            .post();
-    }
-    // </SendMailSnippet>
-
-    // <MakeGraphCallSnippet>
-    public static void makeGraphCall() {
-        // INSERT YOUR CODE HERE
-    }
-    // </MakeGraphCallSnippet>
 }
