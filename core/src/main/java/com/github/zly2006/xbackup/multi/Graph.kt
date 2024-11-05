@@ -95,7 +95,7 @@ object Graph {
             context.addScopes(*scopes.toTypedArray())
 
             val token = _deviceCodeCredential!!.getToken(context).block()
-            return token.token
+            return token!!.token
         }
 
     @JvmStatic

@@ -13,6 +13,7 @@ import net.minecraft.text.MutableText
 import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
 import net.minecraft.world.dimension.DimensionType
+import org.jetbrains.exposed.sql.Database
 import java.nio.file.Path
 
 class Impl : MultiVersioned {

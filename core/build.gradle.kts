@@ -29,7 +29,7 @@ dependencies {
     fun DependencyHandler.shadowImpl(
         dependency: String,
     ): Dependency? {
-        return shadow(implementation(dependency)!!)
+        return shadow(api(dependency)!!)
     }
 
     shadowImpl("org.jetbrains.exposed:exposed-core:$exposed_version")

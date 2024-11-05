@@ -60,7 +60,9 @@ allprojects {
 
         minecraft("com.mojang:minecraft:${project.property("minecraft_version")}")
         mappings("net.fabricmc:yarn:${project.property("yarn_mappings")}:v2")
-        modImplementation("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_version")}")
+        if (project.hasProperty("fabric_version")) {
+            modImplementation("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_version")}")
+        }
     }
 
     loom {
