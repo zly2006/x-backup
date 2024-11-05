@@ -13,10 +13,6 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
-loom {
-//    splitEnvironmentSourceSets()
-}
-
 tasks.withType<JavaCompile>().configureEach {
     options.release = 17
 }
@@ -26,19 +22,16 @@ kotlin {
 }
 
 dependencies {
-    fun DependencyHandler.shadowImpl(
-        dependency: String,
-    ): Dependency? {
-        return shadow(api(dependency)!!)
-    }
+    fun DependencyHandler.sharedLib(dependency: String) =
+        shadow(api(dependency)!!)!!
 
-    shadowImpl("org.jetbrains.exposed:exposed-core:$exposed_version")
-    shadowImpl("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
-    shadowImpl("org.xerial:sqlite-jdbc:3.46.0.0")
+    sharedLib("org.jetbrains.exposed:exposed-core:$exposed_version")
+    sharedLib("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
+    sharedLib("org.xerial:sqlite-jdbc:3.46.0.0")
 
-    shadowImpl("com.google.guava:guava:31.1-jre")
-    shadowImpl("com.azure:azure-identity:1.10.4")
-    shadowImpl("com.microsoft.graph:microsoft-graph:5.75.0")
+    sharedLib("com.google.guava:guava:31.1-jre")
+    sharedLib("com.azure:azure-identity:1.10.4")
+    sharedLib("com.microsoft.graph:microsoft-graph:5.75.0")
 }
 
 tasks {

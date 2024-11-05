@@ -164,8 +164,7 @@ object Commands {
                 literal("login") {
                     executes {
                         XBackup.ensureNotBusy {
-                            XBackup.service.initializeGraphForUserAuth(it.source)
-                            it.source.send(literalText("Logged in"))
+                            XBackup.service.initializeGraphForUserAuth(it.source, true)
                         }
                         1
                     }

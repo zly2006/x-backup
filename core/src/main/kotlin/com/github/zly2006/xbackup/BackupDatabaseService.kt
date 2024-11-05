@@ -5,7 +5,7 @@ import com.azure.identity.AuthenticationRecord
 import com.azure.identity.DeviceCodeCredential
 import com.azure.identity.DeviceCodeCredentialBuilder
 import com.github.zly2006.xbackup.Utils.send
-import com.github.zly2006.xbackup.multi.App
+import com.microsoft.graph.authentication.TokenCredentialAuthProvider
 import com.microsoft.graph.requests.GraphServiceClient
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
@@ -275,7 +275,14 @@ class BackupDatabaseService(
 
     suspend fun uploadOneDrive(id: Int) {
         val backup = getBackup(id) ?: error("Backup not found")
-        backup.entries.filter { it.cloudDriveId == null }.map { entry ->
+        val entries = backup.entries.filter { it.cloudDriveId == null && !it.isDirectory }
+        val total = entries.size
+        var done = 0
+        entries.map { entry ->
+            if (!getBlobFile(entry.hash).exists()) {
+                XBackup.log.warn("Blob not found for file ${entry.path}, hash: ${entry.hash}")
+                return@map CompletableFuture.completedFuture(null)
+            }
             client.me().drive().root().itemWithPath("X-Backup/blob/${entry.hash}")
                 .content()
                 .buildRequest()
@@ -287,10 +294,12 @@ class BackupDatabaseService(
                                 it[cloudDriveId] = 1
                             }
                             getBlobFile(entry.hash).toFile().delete()
+                            done++
+                            XBackup.log.info("Uploaded blob ${entry.hash}, $done/$total")
                         }
                     }
                 }
-        }.map { it.await() }.joinAll()
+        }.mapNotNull { it.await() }.joinAll()
         val uuid = UUID.randomUUID().toString()
         val localBackup = File("x_backup.db.back")
         try {
@@ -423,7 +432,11 @@ class BackupDatabaseService(
     )
     private var _deviceCodeCredential: DeviceCodeCredential? = null
 
-    fun initializeGraphForUserAuth(source: ServerCommandSource) {
+    init {
+        initializeGraphForUserAuth(null)
+    }
+
+    fun initializeGraphForUserAuth(source: ServerCommandSource?, login: Boolean = false) {
         val properties = Properties().apply {
             load(XBackup::class.java.getResourceAsStream("/oAuth.properties"))
         }
@@ -450,14 +463,15 @@ class BackupDatabaseService(
             builder.authenticationRecord(authenticationRecord)
         }
         builder.challengeConsumer {
-            source.send(literalText(it.message))
+            source?.send(literalText(it.message))
         }
         _deviceCodeCredential = builder.build()
         val trc = TokenRequestContext().addScopes(*scopes.toTypedArray())
-        if (authenticationRecord == null) {
+        if (login && authenticationRecord == null) {
             // We don't have a record, so we get one and store it. The next authentication will use it.
             _deviceCodeCredential!!.authenticate(trc).flatMap { record: AuthenticationRecord ->
                 try {
+                    source?.send(literalText("Logged in"))
                     return@flatMap record.serializeAsync(FileOutputStream(authenticationRecordPath))
                 } catch (e: FileNotFoundException) {
                     return@flatMap Mono.error(e)
@@ -466,7 +480,7 @@ class BackupDatabaseService(
         }
 
         client = GraphServiceClient.builder()
-            .authenticationProvider { CompletableFuture.completedFuture(_deviceCodeCredential!!.getTokenSync(trc).token) }
+            .authenticationProvider(TokenCredentialAuthProvider(scopes, _deviceCodeCredential!!))
             .buildClient()
     }
 }
