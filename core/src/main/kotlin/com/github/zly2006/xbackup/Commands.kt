@@ -161,6 +161,32 @@ object Commands {
                         1
                     }
                 }
+                literal("login") {
+                    executes {
+                        XBackup.ensureNotBusy {
+                            XBackup.service.initializeGraphForUserAuth(it.source)
+                            it.source.send(literalText("Logged in"))
+                        }
+                        1
+                    }
+                }
+                literal("upload") {
+                    argument("id", IntegerArgumentType.integer(1)).executes {
+                        val id = IntegerArgumentType.getInteger(it, "id")
+                        XBackup.ensureNotBusy {
+                            val backup = XBackup.service.getBackup(id)
+                            if (backup == null) {
+                                it.source.sendError(Text.of("Backup #$id not found"))
+                                return@ensureNotBusy
+                            }
+
+                            it.source.send(literalText("Uploading backup #$id..."))
+                            val result = XBackup.service.uploadOneDrive(backup.id)
+                            it.source.send(literalText("Backup #$id uploaded"))
+                        }
+                        1
+                    }
+                }
                 literal("list") {
                     optional(argument("offset", IntegerArgumentType.integer(0))) {
                         executes {
@@ -191,6 +217,13 @@ object Commands {
                             }
                             1
                         }
+                    }
+                }
+                literal("version") {
+                    executes {
+                        it.source.send(literalText("X Backup"))
+                        it.source.send(literalText("MultiVersion: ${Utils.service.implementationTitle}"))
+                        1
                     }
                 }
                 literal("info") {

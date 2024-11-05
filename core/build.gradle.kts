@@ -25,6 +25,23 @@ kotlin {
     jvmToolchain(17)
 }
 
+dependencies {
+    fun DependencyHandler.shadowImpl(
+        dependency: String,
+    ): Dependency? {
+        return shadow(implementation(dependency)!!)
+    }
+
+    shadowImpl("org.jetbrains.exposed:exposed-core:$exposed_version")
+//    shadowImpl("org.jetbrains.exposed:exposed-dao:$exposed_version")
+    shadowImpl("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
+    shadowImpl("org.xerial:sqlite-jdbc:3.46.0.0")
+
+    shadowImpl("com.google.guava:guava:31.1-jre")
+    shadowImpl("com.azure:azure-identity:1.10.4")
+    shadowImpl("com.microsoft.graph:microsoft-graph:5.75.0")
+}
+
 tasks {
     shadowJar {
         from("LICENSE")
@@ -47,21 +64,4 @@ tasks {
         dependsOn(shadowJar)
         input.set(shadowJar.get().archiveFile)
     }
-}
-
-dependencies {
-    fun DependencyHandler.shadowImpl(
-        dependency: String,
-    ): Dependency? {
-        return shadow(implementation(dependency)!!)
-    }
-
-    shadowImpl("org.jetbrains.exposed:exposed-core:$exposed_version")
-//    shadowImpl("org.jetbrains.exposed:exposed-dao:$exposed_version")
-    shadowImpl("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
-    shadowImpl("org.xerial:sqlite-jdbc:3.46.0.0")
-
-    shadowImpl("com.google.guava:guava:31.1-jre")
-    shadowImpl("com.azure:azure-identity:1.10.4")
-    shadowImpl("com.microsoft.graph:microsoft-graph:5.75.0")
 }

@@ -1,22 +1,32 @@
 package com.github.zly2006.xbackup
 
-import com.github.zly2006.xbackup.BackupDatabaseService.BackupEntryTable
-import com.github.zly2006.xbackup.BackupDatabaseService.BackupTable
+import com.azure.core.credential.TokenRequestContext
+import com.azure.identity.AuthenticationRecord
+import com.azure.identity.DeviceCodeCredential
+import com.azure.identity.DeviceCodeCredentialBuilder
+import com.github.zly2006.xbackup.Utils.send
+import com.github.zly2006.xbackup.multi.App
 import com.microsoft.graph.requests.GraphServiceClient
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
 import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
+import net.minecraft.server.command.ServerCommandSource
 import okhttp3.Request
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.io.InputStream
+import org.sqlite.SQLiteConnection
+import reactor.core.publisher.Mono
+import java.io.*
 import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.util.*
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
@@ -281,6 +291,22 @@ class BackupDatabaseService(
                     }
                 }
         }.map { it.await() }.joinAll()
+        val uuid = UUID.randomUUID().toString()
+        val localBackup = File("x_backup.db.back")
+        try {
+            (database.connector().connection as? SQLiteConnection)?.createStatement()
+                ?.execute("VACUUM INTO 'x_backup.db.back';")
+        } catch (e: Exception) {
+            XBackup.log.error("Error backing up database", e)
+        }
+        client.me().drive().root().itemWithPath("X-Backup/db/$uuid.x_backup.db.back")
+            .content()
+            .buildRequest()
+            .putAsync(localBackup.readBytes())
+            .thenApply {
+                localBackup.delete()
+            }.await()
+        XBackup.log.info("Uploaded backup $id to OneDrive")
     }
 
     fun getBlobFile(hash: String): Path {
@@ -331,10 +357,11 @@ class BackupDatabaseService(
                                 val blobInput: InputStream
                                 if (!blob.exists()) {
                                     if (it.value.cloudDriveId != null) {
-                                        blobInput = client.me().drive().root().itemWithPath("X-Backup/blob/${it.value.hash}")
-                                            .content()
-                                            .buildRequest()
-                                            .get()!!
+                                        blobInput =
+                                            client.me().drive().root().itemWithPath("X-Backup/blob/${it.value.hash}")
+                                                .content()
+                                                .buildRequest()
+                                                .get()!!
                                     }
                                     else {
                                         XBackup.log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
@@ -389,31 +416,84 @@ class BackupDatabaseService(
                 .map { it.toBackup() }
         }
     }
+
+    val scopes = listOf(
+        "user.read",
+        "Files.ReadWrite.All"
+    )
+    private var _deviceCodeCredential: DeviceCodeCredential? = null
+
+    fun initializeGraphForUserAuth(source: ServerCommandSource) {
+        val properties = Properties().apply {
+            load(XBackup::class.java.getResourceAsStream("/oAuth.properties"))
+        }
+
+        val clientId = properties.getProperty("app.clientId")
+        val tenantId = properties.getProperty("app.tenantId")
+        val graphUserScopes = scopes
+
+        val authenticationRecordPath = "path/to/authentication-record.json"
+        Path(authenticationRecordPath).createParentDirectories()
+        var authenticationRecord: AuthenticationRecord? = null
+        try {
+            // If we have an existing record, deserialize it.
+            if (Files.exists(File(authenticationRecordPath).toPath())) {
+                authenticationRecord = AuthenticationRecord.deserialize(FileInputStream(authenticationRecordPath))
+            }
+        } catch (e: FileNotFoundException) {
+            // Handle error as appropriate.
+        }
+
+        val builder = DeviceCodeCredentialBuilder().clientId(clientId).tenantId(tenantId)
+        if (authenticationRecord != null) {
+            // As we have a record, configure the builder to use it.
+            builder.authenticationRecord(authenticationRecord)
+        }
+        builder.challengeConsumer {
+            source.send(literalText(it.message))
+        }
+        _deviceCodeCredential = builder.build()
+        val trc = TokenRequestContext().addScopes(*scopes.toTypedArray())
+        if (authenticationRecord == null) {
+            // We don't have a record, so we get one and store it. The next authentication will use it.
+            _deviceCodeCredential!!.authenticate(trc).flatMap { record: AuthenticationRecord ->
+                try {
+                    return@flatMap record.serializeAsync(FileOutputStream(authenticationRecordPath))
+                } catch (e: FileNotFoundException) {
+                    return@flatMap Mono.error(e)
+                }
+            }.subscribe()
+        }
+
+        client = GraphServiceClient.builder()
+            .authenticationProvider { CompletableFuture.completedFuture(_deviceCodeCredential!!.getTokenSync(trc).token) }
+            .buildClient()
+    }
 }
 
 private fun ResultRow.toBackup() = BackupDatabaseService.Backup(
-    this[BackupTable.id].value,
-    this[BackupTable.size],
-    this[BackupTable.zippedSize],
-    this[BackupTable.created],
-    this[BackupTable.comment],
-    BackupEntryTable.selectAll().where {
-        BackupEntryTable.id inSubQuery
+    this[BackupDatabaseService.BackupTable.id].value,
+    this[BackupDatabaseService.BackupTable.size],
+    this[BackupDatabaseService.BackupTable.zippedSize],
+    this[BackupDatabaseService.BackupTable.created],
+    this[BackupDatabaseService.BackupTable.comment],
+    BackupDatabaseService.BackupEntryTable.selectAll().where {
+        BackupDatabaseService.BackupEntryTable.id inSubQuery
                 BackupDatabaseService.BackupEntryBackupTable.select(BackupDatabaseService.BackupEntryBackupTable.entry)
                     .where {
-                        BackupDatabaseService.BackupEntryBackupTable.backup eq this@toBackup[BackupTable.id]
+                        BackupDatabaseService.BackupEntryBackupTable.backup eq this@toBackup[BackupDatabaseService.BackupTable.id]
                     }
     }.map { it.toBackupEntry() }
 )
 
 private fun ResultRow.toBackupEntry() = BackupDatabaseService.BackupEntry(
-    this[BackupEntryTable.id].value,
-    this[BackupEntryTable.path],
-    this[BackupEntryTable.size],
-    this[BackupEntryTable.zippedSize],
-    this[BackupEntryTable.lastModified],
-    this[BackupEntryTable.isDirectory],
-    this[BackupEntryTable.hash],
-    this[BackupEntryTable.gzip],
-    this[BackupEntryTable.cloudDriveId].let { if (it == 0.toByte()) null else it },
+    this[BackupDatabaseService.BackupEntryTable.id].value,
+    this[BackupDatabaseService.BackupEntryTable.path],
+    this[BackupDatabaseService.BackupEntryTable.size],
+    this[BackupDatabaseService.BackupEntryTable.zippedSize],
+    this[BackupDatabaseService.BackupEntryTable.lastModified],
+    this[BackupDatabaseService.BackupEntryTable.isDirectory],
+    this[BackupDatabaseService.BackupEntryTable.hash],
+    this[BackupDatabaseService.BackupEntryTable.gzip],
+    this[BackupDatabaseService.BackupEntryTable.cloudDriveId].let { if (it == 0.toByte()) null else it },
 )

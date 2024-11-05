@@ -16,7 +16,10 @@ import java.io.*
 import java.io.File
 import java.nio.file.Files
 import java.util.*
+import java.util.concurrent.CompletableFuture
 import java.util.function.Consumer
+import kotlin.io.path.Path
+import kotlin.io.path.createParentDirectories
 
 object Graph {
     private var _properties: Properties? = null
@@ -28,7 +31,6 @@ object Graph {
     )
 
     @JvmStatic
-    @Throws(Exception::class)
     fun initializeGraphForUserAuth(properties: Properties?, challenge: Consumer<DeviceCodeInfo?>?) {
         // Ensure properties isn't null
         if (properties == null) {
@@ -42,6 +44,7 @@ object Graph {
         val graphUserScopes = scopes
 
         val authenticationRecordPath = "path/to/authentication-record.json"
+        Path(authenticationRecordPath).createParentDirectories()
         var authenticationRecord: AuthenticationRecord? = null
         try {
             // If we have an existing record, deserialize it.
@@ -65,7 +68,7 @@ object Graph {
                 try {
                     return@flatMap record.serializeAsync(FileOutputStream(authenticationRecordPath))
                 } catch (e: FileNotFoundException) {
-                    return@flatMap Mono.error<OutputStream>(e)
+                    return@flatMap Mono.error(e)
                 }
             }.subscribe()
         }
@@ -74,7 +77,7 @@ object Graph {
             TokenCredentialAuthProvider(graphUserScopes, _deviceCodeCredential!!)
 
         _userClient = GraphServiceClient.builder()
-            .authenticationProvider(authProvider)
+            .authenticationProvider { CompletableFuture.completedFuture(_deviceCodeCredential!!.getTokenSync(trc).token) }
             .buildClient()
 
         _userClient!!.logger!!.loggingLevel = LoggerLevel.DEBUG
