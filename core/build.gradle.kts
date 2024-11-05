@@ -33,7 +33,6 @@ dependencies {
     }
 
     shadowImpl("org.jetbrains.exposed:exposed-core:$exposed_version")
-//    shadowImpl("org.jetbrains.exposed:exposed-dao:$exposed_version")
     shadowImpl("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     shadowImpl("org.xerial:sqlite-jdbc:3.46.0.0")
 

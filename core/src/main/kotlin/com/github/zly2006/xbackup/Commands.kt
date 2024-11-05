@@ -221,7 +221,7 @@ object Commands {
                 }
                 literal("version") {
                     executes {
-                        it.source.send(literalText("X Backup"))
+                        it.source.send(literalText("X Backup https://github.com/zly2006/x-backup"))
                         it.source.send(literalText("MultiVersion: ${Utils.service.implementationTitle}"))
                         1
                     }

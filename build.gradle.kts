@@ -61,10 +61,6 @@ allprojects {
         minecraft("com.mojang:minecraft:${project.property("minecraft_version")}")
         mappings("net.fabricmc:yarn:${project.property("yarn_mappings")}:v2")
         modImplementation("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_version")}")
-
-        implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
-        implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
-        implementation("org.xerial:sqlite-jdbc:3.46.0.0")
     }
 
     loom {
@@ -133,16 +129,18 @@ repositories {
 }
 
 dependencies {
-    include(project(":xb-1.21.2"))
-    include(project(":xb-1.21"))
-    include(project(":xb-1.20.1"))
-    include(project(":xb-1.20"))
     include(project(":core"))
+    implementation(project(":core", configuration = "namedElements"))
+    implementation(project(":core", configuration = "shadow"))
+    subprojects.filter { it.name.startsWith("xb-") }.forEach {
+        include(it)
+        implementation(project(":" + it.name, configuration = "namedElements"))
+    }
 
-    runtimeOnly(project(":xb-1.21.2", configuration = "namedElements"))
-    runtimeOnly(project(":xb-1.21", configuration = "namedElements"))
-    runtimeOnly(project(":xb-1.20.1", configuration = "namedElements"))
-    runtimeOnly(project(":xb-1.20", configuration = "namedElements"))
+
+    implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
+    implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
+    implementation("org.xerial:sqlite-jdbc:3.46.0.0")
 }
 
 tasks {
