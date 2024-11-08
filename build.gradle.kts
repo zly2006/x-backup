@@ -1,7 +1,11 @@
 plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.0"
-    id("fabric-loom") version "1.8.local"
+    id("fabric-loom") version
+            if (System.getenv("GITHUB_ACTIONS") == "true")
+                "1.8.9"
+            else
+                "1.8.local"
     id("maven-publish")
     id("io.github.goooler.shadow") version "8.1.7"
 }
@@ -143,6 +147,11 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     implementation("org.xerial:sqlite-jdbc:3.46.0.0")
+
+    // referenced in all subprojects, so include it here and we have a better build performance
+    include("com.google.guava:guava:33.2.1-jre")
+    include("com.azure:azure-identity:1.12.2")
+    include("com.microsoft.graph:microsoft-graph:6.13.0")
 }
 
 tasks {
