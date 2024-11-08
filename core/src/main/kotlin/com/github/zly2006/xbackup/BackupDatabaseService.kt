@@ -11,6 +11,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
 import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
+import net.minecraft.enchantment.Enchantments
 import net.minecraft.server.command.ServerCommandSource
 import okhttp3.Request
 import org.jetbrains.exposed.dao.id.IntIdTable
@@ -482,6 +483,10 @@ class BackupDatabaseService(
         client = GraphServiceClient.builder()
             .authenticationProvider(TokenCredentialAuthProvider(scopes, _deviceCodeCredential!!))
             .buildClient()
+    }
+
+    suspend fun getLatestBackup(): Backup = dbQuery {
+        BackupTable.select(BackupTable.id).last().toBackup()
     }
 }
 

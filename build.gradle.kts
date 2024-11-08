@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.0"
-    id("fabric-loom") version "1.8.9"
+    id("fabric-loom") version "1.8.local"
     id("maven-publish")
     id("io.github.goooler.shadow") version "8.1.7"
 }
@@ -17,7 +17,7 @@ allprojects {
 
     base {
         if (project != rootProject ) {
-            archivesName.set(project.property("archives_base_name") as String + project.name)
+            archivesName.set(project.property("archives_base_name") as String + "-" + project.name)
         }
     }
 

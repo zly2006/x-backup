@@ -288,6 +288,20 @@ object Commands {
                         1
                     }
                 }
+                literal("backup-interval") {
+                    argument("seconds", IntegerArgumentType.integer()) {
+                        executes {
+                            XBackup.config.backupInterval = it.getArgument("seconds", Int::class.java)
+                            XBackup.saveConfig()
+                            it.source.send(literalText("Backup interval set to " + XBackup.config.backupInterval + " seconds."))
+                            1
+                        }
+                    }
+                    executes {
+                        it.source.send(literalText("Backup interval is " + XBackup.config.backupInterval + " seconds."))
+                        1
+                    }
+                }
             }
         }
     }
