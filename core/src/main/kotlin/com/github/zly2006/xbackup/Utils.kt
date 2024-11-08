@@ -1,11 +1,14 @@
 package com.github.zly2006.xbackup
 
 import com.github.zly2006.xbackup.multi.MultiVersioned
+import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
 import java.util.*
 
 object Utils {
+    val onedriveSupport = FabricLoader.getInstance().isModLoaded("x_backup_onedrive")
+
     val service by lazy {
         ServiceLoader.load(MultiVersioned::class.java).single()
     }

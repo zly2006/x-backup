@@ -164,7 +164,7 @@ object Commands {
                 literal("login") {
                     executes {
                         XBackup.ensureNotBusy {
-                            XBackup.service.initializeGraphForUserAuth(it.source, true)
+                            XBackup.service.oneDriveService.initializeGraphForUserAuth(it.source, true)
                         }
                         1
                     }
@@ -180,7 +180,7 @@ object Commands {
                             }
 
                             it.source.send(literalText("Uploading backup #$id..."))
-                            val result = XBackup.service.uploadOneDrive(backup.id)
+                            val result = XBackup.service.oneDriveService.uploadOneDrive(XBackup.service, backup.id)
                             it.source.send(literalText("Backup #$id uploaded"))
                         }
                         1

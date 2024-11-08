@@ -1,32 +1,18 @@
 package com.github.zly2006.xbackup
 
-import com.azure.core.credential.TokenRequestContext
-import com.azure.identity.AuthenticationRecord
-import com.azure.identity.DeviceCodeCredential
-import com.azure.identity.DeviceCodeCredentialBuilder
-import com.github.zly2006.xbackup.Utils.send
-import com.microsoft.graph.authentication.TokenCredentialAuthProvider
-import com.microsoft.graph.requests.GraphServiceClient
 import kotlinx.coroutines.*
-import kotlinx.coroutines.future.await
 import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
-import net.minecraft.server.command.ServerCommandSource
-import okhttp3.Request
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.sqlite.SQLiteConnection
-import reactor.core.publisher.Mono
-import java.io.*
+import java.io.InputStream
 import java.nio.file.FileAlreadyExistsException
-import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.*
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
@@ -34,9 +20,15 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.*
 
 class BackupDatabaseService(
-    private val database: Database,
+    val database: Database,
     private val blobDir: Path,
 ) : CoroutineScope {
+    val oneDriveService: IOnedriveUtils by lazy {
+        if (!Utils.onedriveSupport) {
+            error("Onedrive support not enabled")
+        }
+        ServiceLoader.load(IOnedriveUtils::class.java).single()
+    }
     private val ignoredFiles = setOf(
         "x_backup.db",
         "x_backup.db-journal",
@@ -271,53 +263,6 @@ class BackupDatabaseService(
         }
     }
 
-    lateinit var client: GraphServiceClient<Request>
-
-    suspend fun uploadOneDrive(id: Int) {
-        val backup = getBackup(id) ?: error("Backup not found")
-        val entries = backup.entries.filter { it.cloudDriveId == null && !it.isDirectory }
-        val total = entries.size
-        var done = 0
-        entries.map { entry ->
-            if (!getBlobFile(entry.hash).exists()) {
-                XBackup.log.warn("Blob not found for file ${entry.path}, hash: ${entry.hash}")
-                return@map CompletableFuture.completedFuture(null)
-            }
-            client.me().drive().root().itemWithPath("X-Backup/blob/${entry.hash}")
-                .content()
-                .buildRequest()
-                .putAsync(getBlobFile(entry.hash).readBytes())
-                .thenApply {
-                    GlobalScope.launch {
-                        dbQuery {
-                            BackupEntryTable.update({ BackupEntryTable.id eq entry.id }) {
-                                it[cloudDriveId] = 1
-                            }
-                            getBlobFile(entry.hash).toFile().delete()
-                            done++
-                            XBackup.log.info("Uploaded blob ${entry.hash}, $done/$total")
-                        }
-                    }
-                }
-        }.mapNotNull { it.await() }.joinAll()
-        val uuid = UUID.randomUUID().toString()
-        val localBackup = File("x_backup.db.back")
-        try {
-            (database.connector().connection as? SQLiteConnection)?.createStatement()
-                ?.execute("VACUUM INTO 'x_backup.db.back';")
-        } catch (e: Exception) {
-            XBackup.log.error("Error backing up database", e)
-        }
-        client.me().drive().root().itemWithPath("X-Backup/db/$uuid.x_backup.db.back")
-            .content()
-            .buildRequest()
-            .putAsync(localBackup.readBytes())
-            .thenApply {
-                localBackup.delete()
-            }.await()
-        XBackup.log.info("Uploaded backup $id to OneDrive")
-    }
-
     fun getBlobFile(hash: String): Path {
         return blobDir.resolve(hash.take(2)).resolve(hash.drop(2))
     }
@@ -366,11 +311,8 @@ class BackupDatabaseService(
                                 val blobInput: InputStream
                                 if (!blob.exists()) {
                                     if (it.value.cloudDriveId != null) {
-                                        blobInput =
-                                            client.me().drive().root().itemWithPath("X-Backup/blob/${it.value.hash}")
-                                                .content()
-                                                .buildRequest()
-                                                .get()!!
+                                        Class.forName("com.github.zly2006.xbackup.OnedriveUtils")
+                                        blobInput = oneDriveService.downloadBlob(it.value.hash)
                                     }
                                     else {
                                         XBackup.log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
@@ -414,7 +356,7 @@ class BackupDatabaseService(
         }
     }
 
-    private suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =
+    suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =
         newSuspendedTransaction(Dispatchers.IO, database, statement = block)
 
     fun listBackups(offset: Int, limit: Int): List<Backup> {
@@ -424,64 +366,6 @@ class BackupDatabaseService(
                 .limit(limit, offset.toLong()).toList()
                 .map { it.toBackup() }
         }
-    }
-
-    val scopes = listOf(
-        "user.read",
-        "Files.ReadWrite.All"
-    )
-    private var _deviceCodeCredential: DeviceCodeCredential? = null
-
-    init {
-        initializeGraphForUserAuth(null)
-    }
-
-    fun initializeGraphForUserAuth(source: ServerCommandSource?, login: Boolean = false) {
-        val properties = Properties().apply {
-            load(XBackup::class.java.getResourceAsStream("/oAuth.properties"))
-        }
-
-        val clientId = properties.getProperty("app.clientId")
-        val tenantId = properties.getProperty("app.tenantId")
-        val graphUserScopes = scopes
-
-        val authenticationRecordPath = "path/to/authentication-record.json"
-        Path(authenticationRecordPath).createParentDirectories()
-        var authenticationRecord: AuthenticationRecord? = null
-        try {
-            // If we have an existing record, deserialize it.
-            if (Files.exists(File(authenticationRecordPath).toPath())) {
-                authenticationRecord = AuthenticationRecord.deserialize(FileInputStream(authenticationRecordPath))
-            }
-        } catch (e: FileNotFoundException) {
-            // Handle error as appropriate.
-        }
-
-        val builder = DeviceCodeCredentialBuilder().clientId(clientId).tenantId(tenantId)
-        if (authenticationRecord != null) {
-            // As we have a record, configure the builder to use it.
-            builder.authenticationRecord(authenticationRecord)
-        }
-        builder.challengeConsumer {
-            source?.send(literalText(it.message))
-        }
-        _deviceCodeCredential = builder.build()
-        val trc = TokenRequestContext().addScopes(*scopes.toTypedArray())
-        if (login && authenticationRecord == null) {
-            // We don't have a record, so we get one and store it. The next authentication will use it.
-            _deviceCodeCredential!!.authenticate(trc).flatMap { record: AuthenticationRecord ->
-                try {
-                    source?.send(literalText("Logged in"))
-                    return@flatMap record.serializeAsync(FileOutputStream(authenticationRecordPath))
-                } catch (e: FileNotFoundException) {
-                    return@flatMap Mono.error(e)
-                }
-            }.subscribe()
-        }
-
-        client = GraphServiceClient.builder()
-            .authenticationProvider(TokenCredentialAuthProvider(scopes, _deviceCodeCredential!!))
-            .buildClient()
     }
 
     suspend fun getLatestBackup(): Backup = dbQuery {

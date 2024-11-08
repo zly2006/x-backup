@@ -5,6 +5,19 @@ plugins {
     id("io.github.goooler.shadow") version "8.1.7"
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release = 17
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
 dependencies {
     shadow("com.google.guava:guava:31.1-jre")
     shadow("com.azure:azure-identity:1.10.4")
