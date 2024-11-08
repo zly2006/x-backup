@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "x_backup_onedrive",
+  "version": "${version}",
+  "name": "X backup Onedrive Support",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "AGPL-3.0",
+  "icon": "assets/x_backup/icon.png",
+  "environment": "*",
+  "entrypoints": {
+  },
+  "depends": {
+    "fabricloader": "*",
+    "fabric-language-kotlin": "*",
+    "minecraft": "*"
+  }
+}

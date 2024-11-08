@@ -147,11 +147,6 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     implementation("org.xerial:sqlite-jdbc:3.46.0.0")
-
-    // referenced in all subprojects, so include it here and we have a better build performance
-    include("com.google.guava:guava:33.2.1-jre")
-    include("com.azure:azure-identity:1.12.2")
-    include("com.microsoft.graph:microsoft-graph:6.13.0")
 }
 
 tasks {

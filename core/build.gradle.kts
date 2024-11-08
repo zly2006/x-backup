@@ -21,6 +21,7 @@ kotlin {
     jvmToolchain(17)
 }
 
+@Suppress("PackageUpdate")
 dependencies {
     fun DependencyHandler.sharedLib(dependency: String) =
         shadow(api(dependency)!!)!!
@@ -29,9 +30,9 @@ dependencies {
     sharedLib("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     sharedLib("org.xerial:sqlite-jdbc:3.46.0.0")
 
-    api("com.google.guava:guava:33.2.1-jre")
-    api("com.azure:azure-identity:1.12.2")
-    api("com.microsoft.graph:microsoft-graph:6.13.0")
+    api("com.google.guava:guava:31.1-jre")
+    api("com.azure:azure-identity:1.10.4")
+    api("com.microsoft.graph:microsoft-graph:5.75.0")
 }
 
 tasks {
