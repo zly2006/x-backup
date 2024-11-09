@@ -369,7 +369,7 @@ class BackupDatabaseService(
     }
 
     suspend fun getLatestBackup(): Backup = dbQuery {
-        BackupTable.select(BackupTable.id).last().toBackup()
+        BackupTable.selectAll().last().toBackup()
     }
 }
 
