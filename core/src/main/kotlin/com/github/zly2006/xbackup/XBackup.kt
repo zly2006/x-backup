@@ -19,10 +19,7 @@ import org.slf4j.LoggerFactory
 import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteDataSource
 import kotlin.coroutines.CoroutineContext
-import kotlin.io.path.Path
-import kotlin.io.path.absolute
-import kotlin.io.path.readText
-import kotlin.io.path.writeText
+import kotlin.io.path.*
 
 object XBackup : ModInitializer {
     lateinit var config: Config
@@ -51,7 +48,14 @@ object XBackup : ModInitializer {
     }
 
     override fun onInitialize() {
-        loadConfig()
+        runCatching {
+            if (configPath.exists())
+                loadConfig()
+            else {
+                config = Config()
+                saveConfig()
+            }
+        }
         if (System.getProperty("xb.restart") == "true") {
             when (Util.getOperatingSystem()) {
                 Util.OperatingSystem.OSX, Util.OperatingSystem.LINUX -> {

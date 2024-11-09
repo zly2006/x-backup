@@ -52,7 +52,6 @@ class OnedriveUtils : IOnedriveUtils {
 
         val clientId = properties.getProperty("app.clientId")
         val tenantId = properties.getProperty("app.tenantId")
-        val graphUserScopes = scopes
 
         val authenticationRecordPath = "path/to/authentication-record.json"
         Path(authenticationRecordPath).createParentDirectories()

@@ -19,6 +19,7 @@ kotlin {
 }
 
 dependencies {
+    api(project(":core", configuration = "namedElements"))
     shadow("com.google.guava:guava:31.1-jre")
     shadow("com.azure:azure-identity:1.10.4")
     shadow("com.microsoft.graph:microsoft-graph:5.75.0")
