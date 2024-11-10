@@ -298,56 +298,63 @@ class BackupDatabaseService(
                 }
                 map.map {
                     this@BackupDatabaseService.async {
-                        retry(5) {
-                            val path = target.resolve(it.key).normalize().createParentDirectories()
-                            if (it.value.isDirectory) {
-                                path.toFile().mkdirs()
-                            }
-                            else {
-                                if (!path.exists()) {
-                                    path.createParentDirectories().createFile()
-                                }
-                                val blob = getBlobFile(it.value.hash)
-                                val blobInput: InputStream
-                                if (!blob.exists()) {
-                                    if (it.value.cloudDriveId != null) {
-                                        Class.forName("com.github.zly2006.xbackup.OnedriveUtils")
-                                        blobInput = oneDriveService.downloadBlob(it.value.hash)
-                                    }
-                                    else {
-                                        XBackup.log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
-                                        return@retry
-                                    }
+                        val path = target.resolve(it.key).normalize().createParentDirectories()
+                        if (it.value.lastModified == path.toFile().lastModified() && it.value.size == path.fileSize()) {
+                            return@async
+                        }
+                        try {
+                            retry(5) {
+                                if (it.value.isDirectory) {
+                                    path.toFile().mkdirs()
                                 }
                                 else {
-                                    blobInput = blob.toFile().inputStream().buffered()
-                                }
-                                path.outputStream().buffered().use { output ->
-                                    val input = if (it.value.gzip) GZIPInputStream(blobInput) else blobInput
-                                    // copy
-                                    input.use {
-                                        it.copyTo(output)
+                                    if (!path.exists()) {
+                                        path.createParentDirectories().createFile()
                                     }
+                                    val blob = getBlobFile(it.value.hash)
+                                    val blobInput: InputStream
+                                    if (!blob.exists()) {
+                                        if (it.value.cloudDriveId != null) {
+                                            Class.forName("com.github.zly2006.xbackup.OnedriveUtils")
+                                            blobInput = oneDriveService.downloadBlob(it.value.hash)
+                                        }
+                                        else {
+                                            XBackup.log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
+                                            return@retry
+                                        }
+                                    }
+                                    else {
+                                        blobInput = blob.toFile().inputStream().buffered()
+                                    }
+                                    path.outputStream().buffered().use { output ->
+                                        val input = if (it.value.gzip) GZIPInputStream(blobInput) else blobInput
+                                        // copy
+                                        input.use {
+                                            it.copyTo(output)
+                                        }
+                                    }
+                                    val checkAgain =
+                                        MessageDigest.getInstance("MD5").digest(path.toFile().inputStream().readBytes())
+                                            .joinToString("") { "%02x".format(it) }
+                                    if (checkAgain != it.value.hash) {
+                                        val bytes = GZIPInputStream(blob.toFile().inputStream().buffered()).readBytes()
+                                        val gzipMd5 = MessageDigest.getInstance("MD5").digest(bytes)
+                                            .joinToString("") { "%02x".format(it) }
+                                        XBackup.log.error(
+                                            "File hash mismatch, file: $path, expected: ${it.value.hash}, actual: $checkAgain, gzip: $gzipMd5" +
+                                                    if (it.value.hash == gzipMd5 && gzipMd5 != checkAgain) " (writing file failed?)"
+                                                    else if (it.value.hash != gzipMd5 && gzipMd5 == checkAgain) " (bad md5 when creating backup?)"
+                                                    else " (WTF???)"
+                                        )
+                                        path.writeBytes(bytes)
+                                    }
+                                    require(path.fileSize() == it.value.size)
+                                    path.toFile().setLastModified(it.value.lastModified)
+                                    XBackup.log.info("Restored file ${it.key}")
                                 }
-                                val checkAgain =
-                                    MessageDigest.getInstance("MD5").digest(path.toFile().inputStream().readBytes())
-                                        .joinToString("") { "%02x".format(it) }
-                                if (checkAgain != it.value.hash) {
-                                    val bytes = GZIPInputStream(blob.toFile().inputStream().buffered()).readBytes()
-                                    val gzipMd5 = MessageDigest.getInstance("MD5").digest(bytes)
-                                        .joinToString("") { "%02x".format(it) }
-                                    XBackup.log.error(
-                                        "File hash mismatch, file: $path, expected: ${it.value.hash}, actual: $checkAgain, gzip: $gzipMd5" +
-                                                if (it.value.hash == gzipMd5 && gzipMd5 != checkAgain) " (writing file failed?)"
-                                                else if (it.value.hash != gzipMd5 && gzipMd5 == checkAgain) " (bad md5 when creating backup?)"
-                                                else " (WTF???)"
-                                    )
-                                    path.writeBytes(bytes)
-                                }
-                                require(path.fileSize() == it.value.size)
-                                path.toFile().setLastModified(it.value.lastModified)
-                                XBackup.log.info("Restored file ${it.key}")
                             }
+                        } catch (e: Exception) {
+                            XBackup.log.error("", e)
                         }
                     }
                 }.awaitAll()
