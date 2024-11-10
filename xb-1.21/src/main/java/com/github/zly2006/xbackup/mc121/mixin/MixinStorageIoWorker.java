@@ -50,7 +50,7 @@ public abstract class MixinStorageIoWorker implements RestoreAware {
     @Override
     public void preRestore() {
         restoring = true;
-        while (executor.getQueueSize() > 0) {
+        while (executor != null && executor.getQueueSize() > 0) {
             executor.run();
         }
         this.results.clear();
@@ -59,7 +59,7 @@ public abstract class MixinStorageIoWorker implements RestoreAware {
 
     @Override
     public void postRestore() {
-        while (executor.getQueueSize() > 0) {
+        while (executor != null && executor.getQueueSize() > 0) {
             executor.run();
         }
         ((RestoreAware) (Object) this.storage).postRestore();

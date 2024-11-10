@@ -21,6 +21,7 @@ allprojects {
 
     base {
         if (project != rootProject ) {
+            version = rootProject.version
             archivesName.set(project.property("archives_base_name") as String + "-" + project.name)
         }
     }
