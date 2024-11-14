@@ -14,3 +14,8 @@ accessible class net/minecraft/server/world/ChunkTicketManager$TicketDistanceLev
 accessible method net/minecraft/world/ChunkPosDistanceLevelPropagator updateLevel (JIZ)V
 accessible field net/minecraft/world/storage/ChunkPosKeyedStorage worker Lnet/minecraft/world/storage/StorageIoWorker;
 accessible class net/minecraft/world/storage/StorageIoWorker$Result
+accessible field net/minecraft/util/thread/TaskExecutor queue Lnet/minecraft/util/thread/TaskQueue;
+
+accessible method net/minecraft/server/world/ServerChunkManager getChunkHolder (J)Lnet/minecraft/server/world/ChunkHolder;
+accessible method net/minecraft/server/world/ServerChunkManager initChunkCaches ()V
+accessible method net/minecraft/server/world/ServerChunkLoadingManager sendToPlayers (Lnet/minecraft/world/chunk/WorldChunk;)V

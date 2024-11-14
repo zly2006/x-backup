@@ -13,7 +13,6 @@ import net.minecraft.text.MutableText
 import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
 import net.minecraft.world.dimension.DimensionType
-import org.jetbrains.exposed.sql.Database
 import java.nio.file.Path
 
 class Impl : MultiVersioned {
@@ -82,6 +81,10 @@ class Impl : MultiVersioned {
         }
         else {
             server.playerManager.playerList.toList().forEach {
+                if (it.networkHandler.latency == 0) {
+                    // fuck carpet
+                    it.networkHandler.disconnect(Text.translatable("multiplayer.disconnect.duplicate_login"))
+                }
                 it.networkHandler.disconnect(Text.of(reason))
             }
 

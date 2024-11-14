@@ -99,6 +99,35 @@ object Commands {
                         1
                     }
                 }
+                literal("status") {
+                    executes {
+                        it.source.send(literalText("X Backup status: " + if (XBackup.isBusy) "Busy" else "OK"))
+                        runBlocking {
+                            val latest = XBackup.service.getLatestBackup()
+                            if (latest != null) {
+                                it.source.send(
+                                    CrossVersionText.ClickableText(
+                                        literalText("Latest backup: #${latest.id} ${latest.comment}"),
+                                        "/xb info ${latest.id}",
+                                        literalText("Click to view details")
+                                    )
+                                )
+                                if (XBackup.config.backupInterval != 0) {
+                                    val next = latest.created + XBackup.config.backupInterval * 1000
+                                    it.source.send(
+                                        literalText(
+                                            "Next backup at: " + SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(next)
+                                        )
+                                    )
+                                }
+                            }
+                            else {
+                                it.source.send(literalText("No backups yet"))
+                            }
+                        }
+                        1
+                    }
+                }
                 literal("restore") {
                     argument("id", IntegerArgumentType.integer(1)) {
                         literal("--chunk") {
@@ -337,6 +366,7 @@ object Commands {
                 return@ensureNotBusy
             }
             try {
+                XBackup.log.info("Preparing to restore...")
                 it.source.server.prepareRestore("Restoring backup #$id")
                 if (forceStop) {
                     XBackup.service.restore(id, path) { !filter(it) }

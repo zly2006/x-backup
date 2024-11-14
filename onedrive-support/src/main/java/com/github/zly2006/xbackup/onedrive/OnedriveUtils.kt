@@ -138,7 +138,7 @@ class OnedriveUtils : IOnedriveUtils {
         XBackup.log.info("Uploaded backup $id to OneDrive")
     }
 
-    override fun downloadBlob(hash: String): InputStream {
+    override suspend fun downloadBlob(hash: String): InputStream {
         return client.me().drive().root().itemWithPath("X-Backup/blob/${hash}")
             .content()
             .buildRequest()

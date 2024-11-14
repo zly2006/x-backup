@@ -3,6 +3,7 @@ package com.github.zly2006.xbackup.mc121.mixin;
 import com.github.zly2006.xbackup.multi.RestoreAware;
 import com.mojang.datafixers.util.Either;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.scanner.NbtScanner;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.thread.TaskExecutor;
 import net.minecraft.util.thread.TaskQueue;
@@ -14,24 +15,22 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.nio.channels.ClosedChannelException;
-import java.util.ConcurrentModificationException;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 
 @Mixin(StorageIoWorker.class)
 public abstract class MixinStorageIoWorker implements RestoreAware {
     @Shadow @Final private RegionBasedStorage storage;
 
-    @Shadow @Final private Map<ChunkPos, Object> results;
+    @Shadow @Final private Map<ChunkPos, StorageIoWorker.Result> results;
 
     @Shadow @Final private TaskExecutor<TaskQueue.PrioritizedTask> executor;
 
-    @Shadow protected abstract <T> CompletableFuture<T> run(Supplier<Either<T, Exception>> task);
+    @Shadow protected abstract void write(ChunkPos pos, StorageIoWorker.Result result);
 
-    @Shadow protected abstract void writeResult();
+    @Shadow protected abstract void writeRemainingResults();
 
     @Unique
     private boolean restoring = false;
@@ -52,7 +51,7 @@ public abstract class MixinStorageIoWorker implements RestoreAware {
         if (this.storage == null) return;
         restoring = true;
         while (executor != null && executor.getQueueSize() > 0) {
-            executor.run();
+            executor.queue.poll();
         }
         this.results.clear();
         ((RestoreAware) (Object) this.storage).preRestore();
@@ -62,7 +61,7 @@ public abstract class MixinStorageIoWorker implements RestoreAware {
     public void postRestore() {
         if (this.storage == null) return;
         while (executor != null && executor.getQueueSize() > 0) {
-            executor.run();
+            executor.queue.poll();
         }
         ((RestoreAware) (Object) this.storage).postRestore();
         restoring = false;
@@ -84,25 +83,29 @@ public abstract class MixinStorageIoWorker implements RestoreAware {
      * @reason
      */
     @Overwrite
-    private void writeRemainingResults() {
-        this.executor.send(new TaskQueue.PrioritizedTask(1, () -> {
-            try {
-                this.writeResult();
-            } catch (Throwable e) {
-                if (restoring) {
-                    // Ignore exceptions during restore
-                    if (e instanceof ClosedChannelException || e.getCause() instanceof ClosedChannelException) {
-                        return;
-                    }
-                    if (e instanceof ConcurrentModificationException) {
-                        return;
-                    }
-                    if (e instanceof NoSuchElementException) {
-                        return;
-                    }
-                }
-                throw e;
+    private void writeResult() {
+        try {
+            if (!this.results.isEmpty()) {
+                Iterator<Map.Entry<ChunkPos, StorageIoWorker.Result>> iterator = this.results.entrySet().iterator();
+                Map.Entry<ChunkPos, StorageIoWorker.Result> entry = iterator.next();
+                iterator.remove();
+                this.write(entry.getKey(), entry.getValue());
+                this.writeRemainingResults();
             }
-        }));
+        } catch (Throwable e) {
+            if (restoring) {
+                // Ignore exceptions during restore
+                if (e instanceof ClosedChannelException || e.getCause() instanceof ClosedChannelException) {
+                    return;
+                }
+                if (e instanceof ConcurrentModificationException) {
+                    return;
+                }
+                if (e instanceof NoSuchElementException) {
+                    return;
+                }
+            }
+            throw e;
+        }
     }
 }

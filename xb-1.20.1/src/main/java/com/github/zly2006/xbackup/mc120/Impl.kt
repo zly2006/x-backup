@@ -81,6 +81,10 @@ class Impl : MultiVersioned {
         }
         else {
             server.playerManager.playerList.toList().forEach {
+                if (it.pingMilliseconds == 0) {
+                    // fuck carpet
+                    it.networkHandler.disconnect(Text.translatable("multiplayer.disconnect.duplicate_login"))
+                }
                 it.networkHandler.disconnect(Text.of(reason))
             }
 

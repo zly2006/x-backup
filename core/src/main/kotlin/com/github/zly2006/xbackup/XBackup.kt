@@ -17,7 +17,9 @@ import net.minecraft.util.WorldSavePath
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
 import org.sqlite.SQLiteConfig
+import org.sqlite.SQLiteConnection
 import org.sqlite.SQLiteDataSource
+import java.io.File
 import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.*
 
@@ -33,6 +35,10 @@ object XBackup : ModInitializer {
 
     // Restore
     var reason = ""
+        set(value) {
+            field = value
+            log.info("Restore reason: $value")
+        }
     var blockPlayerJoin = false
     var disableSaving = false
     var disableWatchdog = false
@@ -89,7 +95,8 @@ object XBackup : ModInitializer {
                 while (true) {
                     delay(10000)
                     val backup = service.getLatestBackup()
-                    if ((System.currentTimeMillis() - backup.created) / 1000 > config.backupInterval && !isBusy) {
+                    if (isBusy) continue
+                    if (backup == null || (System.currentTimeMillis() - backup.created) / 1000 > config.backupInterval) {
                         try {
                             isBusy = true
                             server.broadcast(literalText("Running scheduled backup, please wait..."))
@@ -97,9 +104,17 @@ object XBackup : ModInitializer {
                                 server.getSavePath(WorldSavePath.ROOT).toAbsolutePath(),
                                 "Scheduled backup"
                             ) { true }
+                            val localBackup = File("x_backup.db.back")
+                            localBackup.delete()
+                            try {
+                                (service.database.connector().connection as? SQLiteConnection)?.createStatement()
+                                    ?.execute("VACUUM INTO '$localBackup';")
+                            } catch (e: Exception) {
+                                log.error("Error backing up database", e)
+                            }
                             server.broadcast(
                                 literalText(
-                                    "Backup #$backId finished, ${sizeToString(totalSize)} " +
+                                    "Scheduled backup #$backId finished, ${sizeToString(totalSize)} " +
                                             "(${sizeToString(compressedSize)} after compression) " +
                                             "+${sizeToString(addedSize)} " +
                                             "in ${millis}ms"

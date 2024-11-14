@@ -7,5 +7,6 @@ interface IOnedriveUtils {
     fun initializeGraphForUserAuth(source: ServerCommandSource?, login: Boolean = false)
 
     suspend fun uploadOneDrive(service: BackupDatabaseService, id: Int)
-    fun downloadBlob(hash: String): InputStream
+
+    suspend fun downloadBlob(hash: String): InputStream
 }

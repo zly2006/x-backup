@@ -375,8 +375,8 @@ class BackupDatabaseService(
         }
     }
 
-    suspend fun getLatestBackup(): Backup = dbQuery {
-        BackupTable.selectAll().last().toBackup()
+    suspend fun getLatestBackup(): Backup? = dbQuery {
+        BackupTable.selectAll().lastOrNull()?.toBackup()
     }
 }
 
