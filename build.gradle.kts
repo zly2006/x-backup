@@ -1,3 +1,5 @@
+import net.fabricmc.loom.task.GenerateSourcesTask
+
 plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.0"
@@ -117,6 +119,9 @@ allprojects {
         withSourcesJar()
     }
 
+}
+
+tasks.withType<GenerateSourcesTask> {
 }
 
 subprojects {

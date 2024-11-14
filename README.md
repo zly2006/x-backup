@@ -14,6 +14,11 @@ The advanced backup mod for fabric.
 
 ### Commands
 ```
+/xb status
+```
+Displays the current status of the backup process.
+
+```
 /xb create [comment]
 ```
 Creates a backup with an optional comment.
@@ -27,6 +32,13 @@ Lists all backups.
 /xb restore <id>
 ```
 Restores a backup with the specified ID.
+
+You can add `--stop` at the end if you want to stop the server after restoring, this may fix some compatibility issues.
+
+```
+/xb backup-interval [interval]
+```
+Checks or sets the backup interval in seconds. Set to 0 to disable automatic backups.
 
 ```
 /xb delete <id>
@@ -54,6 +66,11 @@ Fabric 的高级备份模组。
 
 ### 命令
 ```
+/xb status
+```
+显示备份过程的当前状态。
+
+```
 /xb create [comment]
 ```
 创建一个带有可选注释的备份。
@@ -67,6 +84,13 @@ Fabric 的高级备份模组。
 /xb restore <id>
 ```
 回档到指定 ID 的备份。
+
+如果你想在回档后停止服务器，可以在末尾加上 `--stop`，这可能会修复一些兼容性问题。
+
+```
+/xb backup-interval [interval]
+```
+检查或设置备份间隔（秒）。设置为 0 以禁用自动备份。
 
 ```
 /xb delete <id>
