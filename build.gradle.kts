@@ -101,7 +101,8 @@ allprojects {
                     "mc" to mcVer.replace(".", "_"),
                     "minecraft_version" to mcVer,
                     "loader_version" to fabricLoaderVer,
-                    "kotlin_loader_version" to kotlinLoaderVer
+                    "kotlin_loader_version" to kotlinLoaderVer,
+                    "build_time" to System.currentTimeMillis(),
                 )
             }
         }

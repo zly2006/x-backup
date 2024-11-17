@@ -32,6 +32,7 @@ class BackupDatabaseService(
         ServiceLoader.load(IOnedriveUtils::class.java).single()
     }
     private val ignoredFiles = setOf(
+        "x_backup.db.back",
         "x_backup.db",
         "x_backup.db-wal",
         "x_backup.db-shm",
@@ -305,6 +306,8 @@ class BackupDatabaseService(
                     }
                 }
                 val done = atomic(0)
+                val verbose = map.size < 100
+                XBackup.log.info("[X Backup] ${map.size} files to restore")
                 val deferredList = map.map {
                     this@BackupDatabaseService.async {
                         val path = target.resolve(it.key).normalize().createParentDirectories()
@@ -360,7 +363,7 @@ class BackupDatabaseService(
                                     require(path.fileSize() == it.value.size)
                                     path.toFile().setLastModified(it.value.lastModified)
                                     val done = done.incrementAndGet()
-                                    if (done % 30 == 0) {
+                                    if (done % 30 == 0 || verbose) {
                                         XBackup.log.info("[X Backup] Restored $done files // current: ${it.key}")
                                     }
                                 }

@@ -7,6 +7,7 @@ import com.github.zly2006.xbackup.Utils.save
 import com.github.zly2006.xbackup.Utils.send
 import com.github.zly2006.xbackup.Utils.setAutoSaving
 import com.github.zly2006.xbackup.ktdsl.register
+import com.github.zly2006.xbackup.multi.IColumnPos
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
@@ -132,8 +133,8 @@ object Commands {
                             argument("from", ColumnPosArgumentType.columnPos()) {
                                 argument("to", ColumnPosArgumentType.columnPos()).executes {
                                     val id = IntegerArgumentType.getInteger(it, "id")
-                                    val from = ColumnPosArgumentType.getColumnPos(it, "from")
-                                    val to = ColumnPosArgumentType.getColumnPos(it, "to")
+                                    val from = ColumnPosArgumentType.getColumnPos(it, "from") as IColumnPos
+                                    val to = ColumnPosArgumentType.getColumnPos(it, "to") as IColumnPos
                                     val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
                                     val world = it.source.world
                                     doRestore(id, it, path) {
@@ -142,10 +143,14 @@ object Commands {
                                             XBackup.log.debug("[XB] $p is not in world $world, skipping")
                                             return@doRestore false
                                         }
+                                        val minX = min(from.`x$x_backup`(), to.`x$x_backup`())
+                                        val maxX = max(from.`x$x_backup`(), to.`x$x_backup`())
+                                        val minZ = min(from.`z$x_backup`(), to.`z$x_backup`())
+                                        val maxZ = max(from.`z$x_backup`(), to.`z$x_backup`())
                                         if (p.extension == "mca") {
                                             val x = p.fileName.toString().split(".")[1].toInt()
                                             val z = p.fileName.toString().split(".")[2].toInt()
-                                            if ((x shr 9) >= min(from.x, to.x) shr 9 && (x shr 9) <= max(from.x, to.x) shr 9 && (z shr 9) >= min(from.z, to.z) shr 9 && (z shr 9) <= max(from.z, to.z) shr 9) {
+                                            if (x >= minX shr 9 && x <= maxX shr 9 && z >= minZ shr 9 && z <= maxZ shr 9) {
                                                 return@doRestore true
                                             }
                                             XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
@@ -154,7 +159,7 @@ object Commands {
                                         else if (p.extension == "mcc") {
                                             val x = p.fileName.toString().split(".")[1].toInt()
                                             val z = p.fileName.toString().split(".")[2].toInt()
-                                            if ((x shr 4) >= min(from.x, to.x) shr 4 && (x shr 4) <= max(from.x, to.x) shr 4 && (z shr 4) >= min(from.z, to.z) shr 4 && (z shr 4) <= max(from.z, to.z) shr 4) {
+                                            if (x >= minX shr 4 && x <= maxX shr 4 && z >= minZ shr 4 && z <= maxZ shr 4) {
                                                 return@doRestore true
                                             }
                                             XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
