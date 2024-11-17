@@ -1,0 +1,8 @@
+{
+  "xb.header": "§6[§bX Backups§6] §r",
+  "xb.creating_backup": "§6[§bX Backups§6]§r %s is creating a backup, this may take a while...",
+  "xb.status.latest_backup": "Latest backup: #%s %s",
+  "xb.status.status": "§6[§bX Backups§6]§r Status: %s",
+  "xb.status.no_backups": "No backups available",
+  "xb.create.backup_created": "§6[§bX Backups§6]§r Backup created: #%s %s"
+}

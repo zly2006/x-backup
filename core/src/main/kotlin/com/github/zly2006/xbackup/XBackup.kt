@@ -52,6 +52,18 @@ object XBackup : ModInitializer {
 
     fun loadConfig() {
         config = Json.decodeFromString(configPath.readText())
+        try {
+            Utils.service.reloadLanguage(config.language)
+        } catch (e: Exception) {
+            log.error("Error loading language", e)
+            try {
+                Utils.service.reloadLanguage("en_us")
+                config.language = "en_us"
+                saveConfig()
+            } catch (e: Exception) {
+                log.error("Error loading default language", e)
+            }
+        }
     }
 
     fun saveConfig() {

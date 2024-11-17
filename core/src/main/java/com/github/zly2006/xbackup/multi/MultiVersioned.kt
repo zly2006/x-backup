@@ -29,4 +29,6 @@ interface MultiVersioned {
     fun broadcast(server: MinecraftServer, text: CrossVersionText)
 
     fun kickAllPlayers(minecraftServer: MinecraftServer, reason: CrossVersionText)
+
+    fun reloadLanguage(lang: String)
 }

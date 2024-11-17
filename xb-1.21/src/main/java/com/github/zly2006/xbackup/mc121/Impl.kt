@@ -4,6 +4,9 @@ import com.github.zly2006.xbackup.CrossVersionText
 import com.github.zly2006.xbackup.XBackup
 import com.github.zly2006.xbackup.multi.MultiVersioned
 import com.github.zly2006.xbackup.multi.RestoreAware
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
 import net.minecraft.network.DisconnectionInfo
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
@@ -17,8 +20,16 @@ import net.minecraft.world.dimension.DimensionType
 import java.nio.file.Path
 
 class Impl : MultiVersioned {
+    private lateinit var i18n: Map<String, String>
     override val implementationTitle: String
         get() = "XBackup 1.21"
+
+    @OptIn(ExperimentalSerializationApi::class)
+    override fun reloadLanguage(lang: String) {
+        i18n = Json.decodeFromStream<Map<String, String>>(
+            Impl::class.java.getResourceAsStream("/assets/x_backup/lang/${XBackup.config}.json")!!
+        )
+    }
 
     override fun parseText(text: CrossVersionText): MutableText {
         return when (text) {
@@ -47,6 +58,10 @@ class Impl : MultiVersioned {
                     }
                 }
                 base
+            }
+            is CrossVersionText.TranslatableText -> {
+                val args = text.args.map { parseText(it) }
+                Text.translatableWithFallback(text.key, i18n[text.key], args)
             }
         }
     }
