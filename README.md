@@ -36,6 +36,13 @@ Restores a backup with the specified ID.
 You can add `--stop` at the end if you want to stop the server after restoring, this may fix some compatibility issues.
 
 ```
+/xb restore <id> --chunk <pos1> <pos2>
+```
+
+**Regionally restore**
+Restores a backup with the specified ID, but only restores the chunks within the specified range.
+
+```
 /xb backup-interval [interval]
 ```
 Checks or sets the backup interval in seconds. Set to 0 to disable automatic backups.
@@ -86,6 +93,13 @@ Fabric 的高级备份模组。
 回档到指定 ID 的备份。
 
 如果你想在回档后停止服务器，可以在末尾加上 `--stop`，这可能会修复一些兼容性问题。
+
+```
+/xb restore <id> --chunk <pos1> <pos2>
+```
+
+**区域性回档**
+回档到指定 ID 的备份，但只回档指定范围内的区块。
 
 ```
 /xb backup-interval [interval]
