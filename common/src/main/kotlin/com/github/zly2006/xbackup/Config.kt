@@ -16,4 +16,7 @@ class Config {
 
     @SerialName("mirror_from")
     var mirrorFrom: String? = null
+
+    @SerialName("language")
+    var language = "en_us"
 }
