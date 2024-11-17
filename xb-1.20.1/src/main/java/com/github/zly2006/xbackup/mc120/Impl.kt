@@ -26,7 +26,7 @@ class Impl : MultiVersioned {
     @OptIn(ExperimentalSerializationApi::class)
     override fun reloadLanguage(lang: String) {
         i18n = Json.decodeFromStream<Map<String, String>>(
-            Impl::class.java.getResourceAsStream("/assets/x_backup/lang/${XBackup.config}.json")!!
+            Impl::class.java.getResourceAsStream("/assets/x_backup/lang/$lang.json")!!
         )
     }
 

@@ -85,6 +85,7 @@ object XBackup : ModInitializer {
                 config = Config()
                 saveConfig()
             }
+            Utils.service.reloadLanguage(config.language)
         }
         if (config.mirrorMode) {
             if (config.mirrorFrom == null) {
