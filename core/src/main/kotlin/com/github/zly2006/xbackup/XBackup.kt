@@ -51,23 +51,30 @@ object XBackup : ModInitializer {
     private var crontabJob: Job? = null
 
     fun loadConfig() {
-        config = Json.decodeFromString(configPath.readText())
         try {
+            config = Json.decodeFromString(configPath.readText())
             Utils.service.reloadLanguage(config.language)
         } catch (e: Exception) {
             log.error("Error loading language", e)
             try {
                 Utils.service.reloadLanguage("en_us")
                 config.language = "en_us"
-                saveConfig()
             } catch (e: Exception) {
                 log.error("Error loading default language", e)
             }
         }
+        saveConfig()
     }
 
     fun saveConfig() {
-        configPath.writeText(Json.encodeToString(config))
+        try {
+            configPath.writeText(Json {
+                encodeDefaults = true
+                prettyPrint = true
+            }.encodeToString(config))
+        } catch (e: Exception) {
+            log.error("Error saving config", e)
+        }
     }
 
     override fun onInitialize() {
@@ -129,7 +136,7 @@ object XBackup : ModInitializer {
                     url = "jdbc:sqlite:$worldPath/x_backup.db"
                 }
             )
-            service = BackupDatabaseService(database, worldPath.resolve(config.blobPath))
+            service = BackupDatabaseService(database, worldPath.resolve(config.blobPath), config)
             crontabJob = GlobalScope.launch {
                 while (true) {
                     delay(10000)

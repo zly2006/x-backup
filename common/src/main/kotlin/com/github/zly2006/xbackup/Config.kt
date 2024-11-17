@@ -5,6 +5,13 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 class Config {
+    @SerialName("ignored_files")
+    val ignoredFiles: List<String> = listOf(
+        "session.lock",
+        "fake_player.gca.json",
+        "ledger.sqlite"
+    )
+
     @SerialName("blob_path")
     val blobPath = "blob"
 

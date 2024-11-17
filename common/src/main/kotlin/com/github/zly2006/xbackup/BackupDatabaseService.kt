@@ -24,6 +24,7 @@ import kotlin.io.path.*
 class BackupDatabaseService(
     val database: Database,
     private val blobDir: Path,
+    private val config: Config
 ) : CoroutineScope {
     val log = LoggerFactory.getLogger("XBackup")!!
 
@@ -38,9 +39,7 @@ class BackupDatabaseService(
         "x_backup.db-wal",
         "x_backup.db-shm",
         "x_backup.db-journal",
-        "session.lock",
-        "fake_player.gca.json"
-    )
+    ) + config.ignoredFiles
 
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO

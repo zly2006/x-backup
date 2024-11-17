@@ -49,7 +49,7 @@ fun main() {
         return
     }
 
-    val service = BackupDatabaseService(database, blobDir)
+    val service = BackupDatabaseService(database, blobDir, config)
     println("Recent 10 backups:")
     service.listBackups(0, 10).forEach {
         println("#${it.id} at ${
