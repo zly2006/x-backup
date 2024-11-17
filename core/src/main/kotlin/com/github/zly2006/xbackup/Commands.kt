@@ -49,55 +49,6 @@ object Commands {
     fun register(dispatcher: CommandDispatcher<ServerCommandSource>) {
         dispatcher.register {
             literal("xb") {
-                literal("create") {
-                    optional(argument("comment", StringArgumentType.greedyString())) {
-                        executes {
-                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                            val comment = try {
-                                StringArgumentType.getString(it, "comment")
-                            } catch (_: IllegalArgumentException) {
-                                "Manual backup"
-                            }
-                            XBackup.ensureNotBusy {
-                                it.source.server.broadcast(
-                                    literalText(
-                                        "${it.source.name} is creating a backup, this may take a while..."
-                                    )
-                                )
-                                it.source.server.save()
-                                it.source.server.setAutoSaving(false)
-                                XBackup.disableSaving = true
-                                val result =
-                                    XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
-                                it.source.server.broadcast(
-                                    literalText(
-                                        "Backup #${result.backId} by ${it.source.name} finished, ${sizeToString(result.totalSize)} " +
-                                                "(${sizeToString(result.compressedSize)} after compression) " +
-                                                "+${sizeToString(result.addedSize)} " +
-                                                "in ${result.millis}ms"
-                                    )
-                                )
-                                XBackup.disableSaving = false
-                                it.source.server.setAutoSaving(true)
-                            }
-                            1
-                        }
-                    }
-                }
-                literal("delete") {
-                    argument("id", IntegerArgumentType.integer(1)).executes {
-                        val id = IntegerArgumentType.getInteger(it, "id")
-                        XBackup.ensureNotBusy {
-                            if (XBackup.service.getBackup(id) == null) {
-                                it.source.sendError(Text.of("Backup #$id not found"))
-                                return@ensureNotBusy
-                            }
-                            XBackup.service.deleteBackup(id)
-                            it.source.send(literalText("Backup #$id deleted"))
-                        }
-                        1
-                    }
-                }
                 literal("status") {
                     executes {
                         it.source.send(literalText("X Backup status: " + if (XBackup.isBusy) "Busy" else "OK"))
@@ -111,7 +62,7 @@ object Commands {
                                         literalText("Click to view details")
                                     )
                                 )
-                                if (XBackup.config.backupInterval != 0) {
+                                if (XBackup.config.backupInterval != 0 && !XBackup.config.mirrorMode) {
                                     val next = latest.created + XBackup.config.backupInterval * 1000
                                     it.source.send(
                                         literalText(
@@ -124,65 +75,6 @@ object Commands {
                                 it.source.send(literalText("No backups yet"))
                             }
                         }
-                        1
-                    }
-                }
-                literal("restore") {
-                    argument("id", IntegerArgumentType.integer(1)) {
-                        literal("--chunk") {
-                            argument("from", ColumnPosArgumentType.columnPos()) {
-                                argument("to", ColumnPosArgumentType.columnPos()).executes {
-                                    val id = IntegerArgumentType.getInteger(it, "id")
-                                    val from = ColumnPosArgumentType.getColumnPos(it, "from") as IColumnPos
-                                    val to = ColumnPosArgumentType.getColumnPos(it, "to") as IColumnPos
-                                    val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
-                                    val world = it.source.world
-                                    doRestore(id, it, path) {
-                                        val p = path.resolve(it).normalize()
-                                        if (!Utils.service.isFileInWorld(world, p)) {
-                                            XBackup.log.debug("[X Backup] {} is not in world {}, skipping", p, world)
-                                            return@doRestore false
-                                        }
-                                        val minX = min(from.`x$x_backup`(), to.`x$x_backup`())
-                                        val maxX = max(from.`x$x_backup`(), to.`x$x_backup`())
-                                        val minZ = min(from.`z$x_backup`(), to.`z$x_backup`())
-                                        val maxZ = max(from.`z$x_backup`(), to.`z$x_backup`())
-                                        when (p.extension) {
-                                            "mca" -> {
-                                                val x = p.fileName.toString().split(".")[1].toInt()
-                                                val z = p.fileName.toString().split(".")[2].toInt()
-                                                if (x >= minX shr 9 && x <= maxX shr 9 && z >= minZ shr 9 && z <= maxZ shr 9) {
-                                                    return@doRestore true
-                                                }
-                                                XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
-                                                false
-                                            }
-                                            "mcc" -> {
-                                                val x = p.fileName.toString().split(".")[1].toInt()
-                                                val z = p.fileName.toString().split(".")[2].toInt()
-                                                if (x >= minX shr 4 && x <= maxX shr 4 && z >= minZ shr 4 && z <= maxZ shr 4) {
-                                                    return@doRestore true
-                                                }
-                                                XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
-                                                false
-                                            }
-                                            else -> false
-                                        }
-                                    }
-                                    1
-                                }
-                            }
-                        }
-                        literal("--stop").executes {
-                            val id = IntegerArgumentType.getInteger(it, "id")
-                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                            doRestore(id, it, path, forceStop = true)
-                            1
-                        }
-                    }.executes {
-                        val id = IntegerArgumentType.getInteger(it, "id")
-                        val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        doRestore(id, it, path)
                         1
                     }
                 }
@@ -259,6 +151,146 @@ object Commands {
                         1
                     }
                 }
+            }
+        }
+        if (XBackup.config.mirrorMode) {
+            registerMirrorMode(dispatcher)
+        } else {
+            registerBackupMode(dispatcher)
+        }
+    }
+
+    private fun registerMirrorMode(dispatcher: CommandDispatcher<ServerCommandSource>) {
+        dispatcher.register {
+            literal("mirror") {
+                argument("id", IntegerArgumentType.integer(1)) {
+                    literal("--stop").executes {
+                        val id = IntegerArgumentType.getInteger(it, "id")
+                        val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                        doRestore(id, it, path, forceStop = true)
+                        1
+                    }
+                }.executes {
+                    val id = IntegerArgumentType.getInteger(it, "id")
+                    val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                    doRestore(id, it, path)
+                    1
+                }
+            }
+        }
+    }
+
+    private fun registerBackupMode(dispatcher: CommandDispatcher<ServerCommandSource>) {
+        dispatcher.register {
+            literal("xb") {
+                literal("create") {
+                    optional(argument("comment", StringArgumentType.greedyString())) {
+                        executes {
+                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                            val comment = try {
+                                StringArgumentType.getString(it, "comment")
+                            } catch (_: IllegalArgumentException) {
+                                "Manual backup"
+                            }
+                            XBackup.ensureNotBusy {
+                                it.source.server.broadcast(
+                                    literalText(
+                                        "${it.source.name} is creating a backup, this may take a while..."
+                                    )
+                                )
+                                it.source.server.save()
+                                it.source.server.setAutoSaving(false)
+                                XBackup.disableSaving = true
+                                val result =
+                                    XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
+                                it.source.server.broadcast(
+                                    literalText(
+                                        "Backup #${result.backId} by ${it.source.name} finished, ${sizeToString(result.totalSize)} " +
+                                                "(${sizeToString(result.compressedSize)} after compression) " +
+                                                "+${sizeToString(result.addedSize)} " +
+                                                "in ${result.millis}ms"
+                                    )
+                                )
+                                XBackup.disableSaving = false
+                                it.source.server.setAutoSaving(true)
+                            }
+                            1
+                        }
+                    }
+                }
+                literal("delete") {
+                    argument("id", IntegerArgumentType.integer(1)).executes {
+                        val id = IntegerArgumentType.getInteger(it, "id")
+                        XBackup.ensureNotBusy {
+                            if (XBackup.service.getBackup(id) == null) {
+                                it.source.sendError(Text.of("Backup #$id not found"))
+                                return@ensureNotBusy
+                            }
+                            XBackup.service.deleteBackup(id)
+                            it.source.send(literalText("Backup #$id deleted"))
+                        }
+                        1
+                    }
+                }
+                literal("restore") {
+                    argument("id", IntegerArgumentType.integer(1)) {
+                        literal("--chunk") {
+                            argument("from", ColumnPosArgumentType.columnPos()) {
+                                argument("to", ColumnPosArgumentType.columnPos()).executes {
+                                    val id = IntegerArgumentType.getInteger(it, "id")
+                                    val from = ColumnPosArgumentType.getColumnPos(it, "from") as IColumnPos
+                                    val to = ColumnPosArgumentType.getColumnPos(it, "to") as IColumnPos
+                                    val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
+                                    val world = it.source.world
+                                    doRestore(id, it, path) {
+                                        val p = path.resolve(it).normalize()
+                                        if (!Utils.service.isFileInWorld(world, p)) {
+                                            XBackup.log.debug("[X Backup] {} is not in world {}, skipping", p, world)
+                                            return@doRestore false
+                                        }
+                                        val minX = min(from.`x$x_backup`(), to.`x$x_backup`())
+                                        val maxX = max(from.`x$x_backup`(), to.`x$x_backup`())
+                                        val minZ = min(from.`z$x_backup`(), to.`z$x_backup`())
+                                        val maxZ = max(from.`z$x_backup`(), to.`z$x_backup`())
+                                        when (p.extension) {
+                                            "mca" -> {
+                                                val x = p.fileName.toString().split(".")[1].toInt()
+                                                val z = p.fileName.toString().split(".")[2].toInt()
+                                                if (x >= minX shr 9 && x <= maxX shr 9 && z >= minZ shr 9 && z <= maxZ shr 9) {
+                                                    return@doRestore true
+                                                }
+                                                XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
+                                                false
+                                            }
+                                            "mcc" -> {
+                                                val x = p.fileName.toString().split(".")[1].toInt()
+                                                val z = p.fileName.toString().split(".")[2].toInt()
+                                                if (x >= minX shr 4 && x <= maxX shr 4 && z >= minZ shr 4 && z <= maxZ shr 4) {
+                                                    return@doRestore true
+                                                }
+                                                XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
+                                                false
+                                            }
+                                            else -> false
+                                        }
+                                    }
+                                    1
+                                }
+                            }
+                        }
+                        literal("--stop").executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                            doRestore(id, it, path, forceStop = true)
+                            1
+                        }
+                    }.executes {
+                        val id = IntegerArgumentType.getInteger(it, "id")
+                        val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                        doRestore(id, it, path)
+                        1
+                    }
+                }
                 literal("debug") {
                     literal("inspect") {
                         // send the json details to the player
@@ -272,14 +304,6 @@ object Commands {
                                 }
 
                                 it.source.send(literalText(Json.encodeToString(backup)))
-                            }
-                            1
-                        }
-                    }
-                    literal("login") {
-                        executes {
-                            XBackup.ensureNotBusy {
-                                XBackup.service.oneDriveService.initializeGraphForUserAuth(it.source, true)
                             }
                             1
                         }

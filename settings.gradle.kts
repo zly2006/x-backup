@@ -8,11 +8,13 @@ pluginManagement {
     }
 }
 
+include("common")
+include("compat-fake-source")
+include("core")
+include("cLi")
 include("xb-1.21")
 include("xb-1.21.2")
 include("xb-1.20")
 include("xb-1.20.1")
 include("xb-1.18")
-include("core")
 include("onedrive-support")
-include("compat-fake-source")

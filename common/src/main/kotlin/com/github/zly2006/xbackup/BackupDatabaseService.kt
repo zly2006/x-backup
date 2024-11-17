@@ -1,15 +1,15 @@
 package com.github.zly2006.xbackup
 
-import kotlinx.atomicfu.AtomicLong
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
-import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.slf4j.LoggerFactory
+import java.io.IOException
 import java.io.InputStream
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Path
@@ -25,12 +25,13 @@ class BackupDatabaseService(
     val database: Database,
     private val blobDir: Path,
 ) : CoroutineScope {
+    val log = LoggerFactory.getLogger("XBackup")!!
+
     val oneDriveService: IOnedriveUtils by lazy {
-        if (!Utils.onedriveSupport) {
-            error("Onedrive support not enabled")
-        }
-        ServiceLoader.load(IOnedriveUtils::class.java).single()
+        ServiceLoader.load(IOnedriveUtils::class.java)
+            ?.firstOrNull() ?: error("Onedrive service not found")
     }
+    
     private val ignoredFiles = setOf(
         "x_backup.db.back",
         "x_backup.db",
@@ -245,7 +246,7 @@ class BackupDatabaseService(
             try {
                 return function()
             } catch (e: Throwable) {
-                XBackup.log.error("Error in retry, attempt ${it + 1}/$times", e)
+                log.error("Error in retry, attempt ${it + 1}/$times", e)
                 lastException = e
                 delay(1000)
             }
@@ -307,7 +308,7 @@ class BackupDatabaseService(
                 }
                 val done = atomic(0)
                 val verbose = map.size < 100
-                XBackup.log.info("[X Backup] ${map.size} files to restore")
+                log.info("[X Backup] ${map.size} files to restore")
                 val deferredList = map.map {
                     this@BackupDatabaseService.async {
                         val path = target.resolve(it.key).normalize().createParentDirectories()
@@ -331,7 +332,7 @@ class BackupDatabaseService(
                                             blobInput = oneDriveService.downloadBlob(it.value.hash)
                                         }
                                         else {
-                                            XBackup.log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
+                                            log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
                                             return@retry
                                         }
                                     }
@@ -352,7 +353,7 @@ class BackupDatabaseService(
                                         val bytes = GZIPInputStream(blob.toFile().inputStream().buffered()).readBytes()
                                         val gzipMd5 = MessageDigest.getInstance("MD5").digest(bytes)
                                             .joinToString("") { "%02x".format(it) }
-                                        XBackup.log.error(
+                                        log.error(
                                             "File hash mismatch, file: $path, expected: ${it.value.hash}, actual: $checkAgain, gzip: $gzipMd5" +
                                                     if (it.value.hash == gzipMd5 && gzipMd5 != checkAgain) " (writing file failed?)"
                                                     else if (it.value.hash != gzipMd5 && gzipMd5 == checkAgain) " (bad md5 when creating backup?)"
@@ -364,24 +365,24 @@ class BackupDatabaseService(
                                     path.toFile().setLastModified(it.value.lastModified)
                                     val done = done.incrementAndGet()
                                     if (done % 30 == 0 || verbose) {
-                                        XBackup.log.info("[X Backup] Restored $done files // current: ${it.key}")
+                                        log.info("[X Backup] Restored $done files // current: ${it.key}")
                                     }
                                 }
                             }
                         } catch (e: Exception) {
-                            XBackup.log.error("", e)
+                            log.error("", e)
                         }
                     }
                 }
                 val reportJob = this@BackupDatabaseService.launch {
                     while (done.value < map.size) {
                         delay(5000)
-                        XBackup.log.info("[X Backup] Restored ${done.value}/${map.size} files")
+                        log.info("[X Backup] Restored ${done.value}/${map.size} files")
                     }
                 }
                 deferredList.awaitAll()
                 reportJob.cancelAndJoin()
-                XBackup.log.info("Restored backup $id")
+                log.info("Restored backup $id")
             }
         }
     }

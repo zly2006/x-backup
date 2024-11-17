@@ -1,8 +1,3 @@
-@file:Suppress("PropertyName")
-
-apply(plugin = "fabric-loom")
-apply(plugin = "org.jetbrains.kotlin.jvm")
-apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
 plugins {
     id("io.github.goooler.shadow") version "8.1.7"
 }
@@ -22,8 +17,10 @@ kotlin {
 
 @Suppress("PackageUpdate")
 dependencies {
-    api(project(":common"))
-    shadow(project(":common", configuration = "shadow"))
+    fun DependencyHandler.shadowLib(dependency: Any) =
+        shadow(api(dependency)!!)!!
+
+    shadowLib(project(":common"))
 }
 
 tasks {
@@ -33,7 +30,7 @@ tasks {
         configurations = listOf(
             project.configurations.shadow.get()
         )
-        archiveClassifier.set("dev-all")
+        archiveClassifier.set("all")
 
         exclude("kotlin/**", "kotlinx/**", "javax/**")
         exclude("org/checkerframework/**", "org/intellij/**", "org/jetbrains/annotations/**")
@@ -42,10 +39,5 @@ tasks {
 
         val relocPath = "com.github.zly2006.xbackup."
         relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")
-    }
-
-    remapJar {
-        dependsOn(shadowJar)
-        input.set(shadowJar.get().archiveFile)
     }
 }

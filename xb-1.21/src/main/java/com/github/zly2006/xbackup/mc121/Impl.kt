@@ -63,6 +63,7 @@ class Impl : MultiVersioned {
         server.playerManager.broadcast(parseText(text), false)
     }
 
+    @Deprecated("Unused")
     override fun save(server: MinecraftServer) {
         server.saveAll(false, false, true)
     }
@@ -71,6 +72,7 @@ class Impl : MultiVersioned {
         server.worlds.forEach { it.savingDisabled = !autoSaving }
     }
 
+    @Deprecated("Old method")
     override fun prepareRestore(server: MinecraftServer, reason: String) {
         XBackup.reason = reason
         XBackup.blockPlayerJoin = true

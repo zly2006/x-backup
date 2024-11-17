@@ -20,9 +20,7 @@ public class MixinLuckPermsPlugin {
             require = 0
     )
     private void shutdownExecutor(SchedulerAdapter schedulerAdapter) {
-        if (XBackup.INSTANCE.getRestoring()) {
-            // do nothing
-        } else {
+        if (!XBackup.INSTANCE.getRestoring()) {
             schedulerAdapter.shutdownExecutor();
         }
     }
@@ -37,9 +35,7 @@ public class MixinLuckPermsPlugin {
             require = 0
     )
     private void shutdownScheduler(SchedulerAdapter schedulerAdapter) {
-        if (XBackup.INSTANCE.getRestoring()) {
-            // do nothing
-        } else {
+        if (!XBackup.INSTANCE.getRestoring()) {
             schedulerAdapter.shutdownScheduler();
         }
     }

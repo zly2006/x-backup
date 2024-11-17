@@ -21,7 +21,9 @@ import org.sqlite.SQLiteConnection
 import org.sqlite.SQLiteDataSource
 import java.io.File
 import kotlin.coroutines.CoroutineContext
-import kotlin.io.path.*
+import kotlin.io.path.exists
+import kotlin.io.path.readText
+import kotlin.io.path.writeText
 
 object XBackup : ModInitializer {
     lateinit var config: Config
@@ -65,6 +67,21 @@ object XBackup : ModInitializer {
                 saveConfig()
             }
         }
+        if (config.mirrorMode) {
+            if (config.mirrorFrom == null) {
+                log.error("Mirror mode is enabled but mirrorFrom is not set")
+                error("Mirror mode is enabled but mirrorFrom is not set")
+            }
+            val mirrorFrom = File(config.mirrorFrom!!)
+            if (!mirrorFrom.isDirectory) {
+                log.error("Mirror mode is enabled but mirrorFrom is not a directory")
+                error("Mirror mode is enabled but mirrorFrom is not a directory")
+            }
+            if (!mirrorFrom.resolve("server.properties").exists() || !mirrorFrom.resolve("world").exists()) {
+                log.error("Mirror mode is enabled but mirrorFrom is not a valid server directory")
+                error("Mirror mode is enabled but mirrorFrom is not a valid server directory")
+            }
+        }
         if (System.getProperty("xb.restart") == "true") {
             when (Util.getOperatingSystem()) {
                 Util.OperatingSystem.OSX, Util.OperatingSystem.LINUX -> {
@@ -84,7 +101,11 @@ object XBackup : ModInitializer {
         }
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             this.server = server
-            val path = server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+            val worldPath = if (config.mirrorMode) {
+                File(config.mirrorFrom!!).toPath().resolve("world")
+            } else {
+                server.getSavePath(WorldSavePath.ROOT)
+            }.toAbsolutePath()
             val database = Database.connect(
                 SQLiteDataSource(
                     SQLiteConfig().apply {
@@ -93,10 +114,10 @@ object XBackup : ModInitializer {
                         setJournalMode(SQLiteConfig.JournalMode.WAL)
                     }
                 ).apply {
-                    url = "jdbc:sqlite:$path/x_backup.db"
+                    url = "jdbc:sqlite:$worldPath/x_backup.db"
                 }
             )
-            service = BackupDatabaseService(database, Path("blob").absolute())
+            service = BackupDatabaseService(database, worldPath.resolve(config.blobPath))
             crontabJob = GlobalScope.launch {
                 while (true) {
                     delay(10000)

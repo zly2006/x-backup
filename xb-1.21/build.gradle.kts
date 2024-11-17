@@ -17,5 +17,5 @@ kotlin {
 
 dependencies {
     modRuntimeOnly("carpet:fabric-carpet:1.21-1.4.147+v240613")
-    compileOnly(project(":compat-fake-source", configuration = "namedElements"))
+    compileOnly(project(":compat-fake-source"))
 }

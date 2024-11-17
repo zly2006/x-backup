@@ -63,6 +63,7 @@ class Impl : MultiVersioned {
         server.playerManager.broadcast(parseText(text), false)
     }
 
+    @Deprecated("Unused")
     override fun save(server: MinecraftServer) {
         server.saveAll(false, false, true)
     }

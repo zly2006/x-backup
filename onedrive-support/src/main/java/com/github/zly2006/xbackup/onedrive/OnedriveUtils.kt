@@ -11,6 +11,7 @@ import com.github.zly2006.xbackup.XBackup
 import com.github.zly2006.xbackup.literalText
 import com.microsoft.graph.authentication.TokenCredentialAuthProvider
 import com.microsoft.graph.requests.GraphServiceClient
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.joinAll
@@ -45,7 +46,7 @@ class OnedriveUtils : IOnedriveUtils {
         initializeGraphForUserAuth(null, false)
     }
 
-    override fun initializeGraphForUserAuth(source: ServerCommandSource?, login: Boolean) {
+    fun initializeGraphForUserAuth(source: ServerCommandSource?, login: Boolean) {
         val properties = Properties().apply {
             load(XBackup::class.java.getResourceAsStream("/oAuth.properties"))
         }
@@ -93,6 +94,7 @@ class OnedriveUtils : IOnedriveUtils {
     }
 
 
+    @OptIn(DelicateCoroutinesApi::class)
     override suspend fun uploadOneDrive(service: BackupDatabaseService, id: Int) {
         val backup = service.getBackup(id) ?: error("Backup not found")
         val entries = backup.entries.filter { it.cloudDriveId == null && !it.isDirectory }

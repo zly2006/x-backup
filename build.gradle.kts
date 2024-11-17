@@ -17,7 +17,12 @@ group = project.property("maven_group") as String
 val exposed_version: String by project
 
 allprojects {
-    apply(plugin = "fabric-loom")
+    val dependsMinecraft = this.name !in setOf("compat-fake-source", "cLi", "common")
+    this.ext.set("dependsMinecraft", dependsMinecraft)
+
+    if (dependsMinecraft) {
+        apply(plugin = "fabric-loom")
+    }
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
 
@@ -57,78 +62,80 @@ allprojects {
         mavenCentral()
     }
 
-    dependencies {
-        if (project.name.startsWith("xb-")) {
-            // compatibility subprojects
-            api(project(":core", configuration = "namedElements"))
-        }
-        modImplementation("net.fabricmc:fabric-loader:${project.property("loader_version")}")
-        modImplementation("net.fabricmc:fabric-language-kotlin:${project.property("kotlin_loader_version")}")
+    if (dependsMinecraft) {
+        dependencies {
+            if (project.name.startsWith("xb-")) {
+                // compatibility subprojects
+                api(project(":core", configuration = "namedElements"))
+            }
+            modImplementation("net.fabricmc:fabric-loader:${project.property("loader_version")}")
+            modImplementation("net.fabricmc:fabric-language-kotlin:${project.property("kotlin_loader_version")}")
 
-        minecraft("com.mojang:minecraft:${project.property("minecraft_version")}")
-        mappings("net.fabricmc:yarn:${project.property("yarn_mappings")}:v2")
-        if (project.hasProperty("fabric_version")) {
-            modImplementation("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_version")}")
-        }
-    }
-
-    loom {
-        runs {
-            named("client") {
-                programArg("--username")
-                programArg("Dev")
+            minecraft("com.mojang:minecraft:${project.property("minecraft_version")}")
+            mappings("net.fabricmc:yarn:${project.property("yarn_mappings")}:v2")
+            if (project.hasProperty("fabric_version")) {
+                modImplementation("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_version")}")
             }
         }
-    }
 
+        loom {
+            runs {
+                named("client") {
+                    programArg("--username")
+                    programArg("Dev")
+                }
+            }
+        }
 
-    tasks {
-        processResources {
+        tasks {
+            processResources {
 //            inputs.property("version", rootProject.version)
 //            inputs.property("minecraft_version", project.property("minecraft_version"))
 //            inputs.property("loader_version", project.property("loader_version"))
-            filteringCharset = "UTF-8"
+                filteringCharset = "UTF-8"
 
-            val isRoot = project == rootProject
-            val mcVer = project.property("minecraft_version").toString()
-            val fabricLoaderVer = project.property("loader_version")
-            val kotlinLoaderVer = project.property("kotlin_loader_version")
-            println("processResources, project: ${project.name} ${if (isRoot) "(root)" else ""}, mc: $mcVer")
+                val isRoot = project == rootProject
+                val mcVer = project.property("minecraft_version").toString()
+                val fabricLoaderVer = project.property("loader_version")
+                val kotlinLoaderVer = project.property("kotlin_loader_version")
+                println("processResources, project: ${project.name} ${if (isRoot) "(root)" else ""}, mc: $mcVer")
 
-            filesMatching("fabric.mod.json") {
-                expand(
-                    "version" to rootProject.version,
-                    "mc" to mcVer.replace(".", "_"),
-                    "minecraft_version" to mcVer,
-                    "loader_version" to fabricLoaderVer,
-                    "kotlin_loader_version" to kotlinLoaderVer,
-                    "build_time" to System.currentTimeMillis(),
-                )
+                filesMatching("fabric.mod.json") {
+                    expand(
+                        "version" to rootProject.version,
+                        "mc" to mcVer.replace(".", "_"),
+                        "minecraft_version" to mcVer,
+                        "loader_version" to fabricLoaderVer,
+                        "kotlin_loader_version" to kotlinLoaderVer,
+                        "build_time" to System.currentTimeMillis(),
+                    )
+                }
             }
-        }
 
-        withType<JavaCompile>().configureEach {
-            options.encoding = "UTF-8"
-        }
+            withType<JavaCompile>().configureEach {
+                options.encoding = "UTF-8"
+            }
 
-        jar {
-            from(rootProject.file("LICENSE"))
+            jar {
+                from(rootProject.file("LICENSE"))
+            }
         }
     }
 
     java {
         withSourcesJar()
     }
-
 }
 
 tasks.withType<GenerateSourcesTask> {
 }
 
 subprojects {
-    configurations {
-        modRuntimeOnly {
-            exclude(module = "fabric-api-base")
+    if (this.ext.get("dependsMinecraft") as Boolean) {
+        configurations {
+            modRuntimeOnly {
+                exclude(module = "fabric-api-base")
+            }
         }
     }
 }

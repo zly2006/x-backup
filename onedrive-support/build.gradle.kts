@@ -1,5 +1,3 @@
-import net.fabricmc.loom.task.GenerateSourcesTask
-
 apply(plugin = "fabric-loom")
 apply(plugin = "org.jetbrains.kotlin.jvm")
 apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
@@ -37,8 +35,4 @@ tasks.shadowJar {
     configurations = listOf(
         project.configurations.shadow.get()
     )
-}
-
-tasks.withType<GenerateSourcesTask> {
-    dependsOn(":compat-fake-source:genSourcesWithVineflower")
 }
