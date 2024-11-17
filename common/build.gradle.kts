@@ -48,12 +48,7 @@ tasks {
         configurations = listOf(
             project.configurations.shadow.get()
         )
-        archiveClassifier.set("dev-all")
-
-        exclude("kotlin/**", "kotlinx/**", "javax/**")
-        exclude("org/checkerframework/**", "org/intellij/**", "org/jetbrains/annotations/**")
-        exclude("com/google/gson/**")
-        exclude("org/slf4j/**")
+        archiveClassifier.set("all")
 
         val relocPath = "com.github.zly2006.xbackup."
         relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")

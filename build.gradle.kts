@@ -17,7 +17,7 @@ group = project.property("maven_group") as String
 val exposed_version: String by project
 
 allprojects {
-    val dependsMinecraft = this.name !in setOf("compat-fake-source", "cLi", "common")
+    val dependsMinecraft = this.name !in setOf("compat-fake-source", "cli", "common")
     this.ext.set("dependsMinecraft", dependsMinecraft)
 
     if (dependsMinecraft) {
@@ -164,10 +164,10 @@ dependencies {
 }
 
 tasks {
-    processResources {
-//        from("${rootDir}/assets/icon.png") {
-//            into("assets/bettersleeping/")
-//        }
+    jar {
+        from("LICENSE") {
+            rename { "${it}_${project.base.archivesName}" }
+        }
     }
 }
 
@@ -181,12 +181,6 @@ java {
 
 kotlin {
     jvmToolchain(17)
-}
-
-tasks.jar {
-    from("LICENSE") {
-        rename { "${it}_${project.base.archivesName}" }
-    }
 }
 
 // configure the maven publication
@@ -204,5 +198,21 @@ publishing {
         // Notice: This block does NOT have the same function as the block in the top level.
         // The repositories here will be used for publishing your artifact, not for
         // retrieving dependencies.
+    }
+}
+
+tasks.build {
+    val subProjectTasks = listOf(
+        task(":cli:shadowJar")
+    )
+
+    subProjectTasks.forEach {
+        dependsOn(it)
+        doLast {
+            copy {
+                from(it.outputs.files)
+                into("build/libs")
+            }
+        }
     }
 }

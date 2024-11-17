@@ -11,7 +11,7 @@ pluginManagement {
 include("common")
 include("compat-fake-source")
 include("core")
-include("cLi")
+include("cli")
 include("xb-1.21")
 include("xb-1.21.2")
 include("xb-1.20")

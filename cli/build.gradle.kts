@@ -1,6 +1,8 @@
 plugins {
     id("io.github.goooler.shadow") version "8.1.7"
 }
+apply(plugin = "org.jetbrains.kotlin.jvm")
+apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -31,11 +33,9 @@ tasks {
             project.configurations.shadow.get()
         )
         archiveClassifier.set("all")
-
-        exclude("kotlin/**", "kotlinx/**", "javax/**")
-        exclude("org/checkerframework/**", "org/intellij/**", "org/jetbrains/annotations/**")
-        exclude("com/google/gson/**")
-        exclude("org/slf4j/**")
+        manifest {
+            attributes["Main-Class"] = "Main"
+        }
 
         val relocPath = "com.github.zly2006.xbackup."
         relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")

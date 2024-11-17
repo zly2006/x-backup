@@ -20,7 +20,6 @@ kotlin {
     jvmToolchain(17)
 }
 
-@Suppress("PackageUpdate")
 dependencies {
     api(project(":common"))
     shadow(project(":common", configuration = "shadow"))
@@ -39,6 +38,7 @@ tasks {
         exclude("org/checkerframework/**", "org/intellij/**", "org/jetbrains/annotations/**")
         exclude("com/google/gson/**")
         exclude("org/slf4j/**")
+        exclude("_COROUTINE/**")
 
         val relocPath = "com.github.zly2006.xbackup."
         relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")
