@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "com.github.zly2006.xbackup.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "MixinServer",
+    "compat.MixinLuckPermsPlugin",
+    "disable.MixinDedicatedServerWatchdog",
+    "disable.MixinStorageIoWorker"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
