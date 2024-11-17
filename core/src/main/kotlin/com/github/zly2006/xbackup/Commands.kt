@@ -51,10 +51,7 @@ object Commands {
             literal("xb") {
                 literal("status") {
                     executes {
-                        it.source.send(
-                            CrossVersionText.TranslatableText("xb.status.status",
-                                if (XBackup.isBusy) "Busy" else "OK")
-                        )
+                        it.source.send(literalText("X Backup status: " + if (XBackup.isBusy) "Busy" else "OK"))
                         runBlocking {
                             val latest = XBackup.service.getLatestBackup()
                             if (latest != null) {
