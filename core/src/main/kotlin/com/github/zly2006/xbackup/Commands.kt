@@ -140,33 +140,33 @@ object Commands {
                                     doRestore(id, it, path) {
                                         val p = path.resolve(it).normalize()
                                         if (!Utils.service.isFileInWorld(world, p)) {
-                                            XBackup.log.debug("[XB] $p is not in world $world, skipping")
+                                            XBackup.log.debug("[X Backup] {} is not in world {}, skipping", p, world)
                                             return@doRestore false
                                         }
                                         val minX = min(from.`x$x_backup`(), to.`x$x_backup`())
                                         val maxX = max(from.`x$x_backup`(), to.`x$x_backup`())
                                         val minZ = min(from.`z$x_backup`(), to.`z$x_backup`())
                                         val maxZ = max(from.`z$x_backup`(), to.`z$x_backup`())
-                                        if (p.extension == "mca") {
-                                            val x = p.fileName.toString().split(".")[1].toInt()
-                                            val z = p.fileName.toString().split(".")[2].toInt()
-                                            if (x >= minX shr 9 && x <= maxX shr 9 && z >= minZ shr 9 && z <= maxZ shr 9) {
-                                                return@doRestore true
+                                        when (p.extension) {
+                                            "mca" -> {
+                                                val x = p.fileName.toString().split(".")[1].toInt()
+                                                val z = p.fileName.toString().split(".")[2].toInt()
+                                                if (x >= minX shr 9 && x <= maxX shr 9 && z >= minZ shr 9 && z <= maxZ shr 9) {
+                                                    return@doRestore true
+                                                }
+                                                XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
+                                                false
                                             }
-                                            XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
-                                            false
-                                        }
-                                        else if (p.extension == "mcc") {
-                                            val x = p.fileName.toString().split(".")[1].toInt()
-                                            val z = p.fileName.toString().split(".")[2].toInt()
-                                            if (x >= minX shr 4 && x <= maxX shr 4 && z >= minZ shr 4 && z <= maxZ shr 4) {
-                                                return@doRestore true
+                                            "mcc" -> {
+                                                val x = p.fileName.toString().split(".")[1].toInt()
+                                                val z = p.fileName.toString().split(".")[2].toInt()
+                                                if (x >= minX shr 4 && x <= maxX shr 4 && z >= minZ shr 4 && z <= maxZ shr 4) {
+                                                    return@doRestore true
+                                                }
+                                                XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
+                                                false
                                             }
-                                            XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
-                                            false
-                                        }
-                                        else {
-                                            false
+                                            else -> false
                                         }
                                     }
                                     1

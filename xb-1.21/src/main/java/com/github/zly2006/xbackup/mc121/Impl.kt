@@ -4,6 +4,7 @@ import com.github.zly2006.xbackup.CrossVersionText
 import com.github.zly2006.xbackup.XBackup
 import com.github.zly2006.xbackup.multi.MultiVersioned
 import com.github.zly2006.xbackup.multi.RestoreAware
+import net.minecraft.network.DisconnectionInfo
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.server.world.ServerWorld
@@ -108,13 +109,9 @@ class Impl : MultiVersioned {
     }
 
     override fun finishRestore(server: MinecraftServer) {
-        XBackup.blockPlayerJoin = false
-        XBackup.disableWatchdog = false
-        XBackup.disableSaving = false
-
-        server.worlds.forEach {
-            (it as RestoreAware).postRestore()
-        }
+        server.running = true
+        server.stopped = false
+        server.runServer()
     }
 
     companion object {
@@ -163,5 +160,20 @@ class Impl : MultiVersioned {
             world.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
         ).normalize()
         return p.normalize().startsWith(path)
+    }
+
+    override fun kickAllPlayers(minecraftServer: MinecraftServer, reason: CrossVersionText) {
+        minecraftServer.playerManager.playerList.forEach {
+            it.networkHandler.disconnect(DisconnectionInfo(parseText(reason)))
+        }
+        while (minecraftServer.playerManager.playerList.isNotEmpty()) {
+            minecraftServer.networkIo.tick()
+            minecraftServer.playerManager.playerList.forEach {
+                // fuck carpet
+                it.networkHandler.disconnect(Text.literal("multiplayer.disconnect.duplicate_login"))
+            }
+            XBackup.log.info("Waiting for all players to leave...")
+            Thread.sleep(1000)
+        }
     }
 }

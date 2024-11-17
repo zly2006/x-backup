@@ -23,10 +23,14 @@ object Utils {
     }
 
     inline fun MinecraftServer.save() {
-        service.save(this)
+        saveAll(false, false, true)
     }
 
     inline fun MinecraftServer.finishRestore() {
+        XBackup.blockPlayerJoin = false
+        XBackup.disableWatchdog = false
+        XBackup.disableSaving = false
+        XBackup.restoring = false
         service.finishRestore(this)
     }
 

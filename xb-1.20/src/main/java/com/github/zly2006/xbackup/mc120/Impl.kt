@@ -108,13 +108,9 @@ class Impl : MultiVersioned {
     }
 
     override fun finishRestore(server: MinecraftServer) {
-        XBackup.blockPlayerJoin = false
-        XBackup.disableWatchdog = false
-        XBackup.disableSaving = false
-
-        server.worlds.forEach {
-            (it as RestoreAware).postRestore()
-        }
+        server.running = true
+        server.stopped = false
+        server.runServer()
     }
 
     companion object {

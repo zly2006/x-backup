@@ -14,10 +14,12 @@ interface MultiVersioned {
 
     fun sendMessage(source: ServerCommandSource, text: CrossVersionText, broadcastToOps: Boolean)
 
+    @Deprecated("Unused")
     fun save(server: MinecraftServer)
 
     fun setAutoSaving(server: MinecraftServer, autoSaving: Boolean)
 
+    @Deprecated("Old method")
     fun prepareRestore(server: MinecraftServer, reason: String)
 
     fun finishRestore(server: MinecraftServer)

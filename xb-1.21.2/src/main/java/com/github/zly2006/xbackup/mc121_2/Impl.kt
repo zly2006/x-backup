@@ -71,6 +71,7 @@ class Impl : MultiVersioned {
         server.worlds.forEach { it.savingDisabled = !autoSaving }
     }
 
+    @Deprecated("Old method")
     override fun prepareRestore(server: MinecraftServer, reason: String) {
         XBackup.reason = reason
         XBackup.blockPlayerJoin = true
@@ -109,13 +110,9 @@ class Impl : MultiVersioned {
     }
 
     override fun finishRestore(server: MinecraftServer) {
-        XBackup.blockPlayerJoin = false
-        XBackup.disableWatchdog = false
-        XBackup.disableSaving = false
-
-        server.worlds.forEach {
-            (it as RestoreAware).postRestore()
-        }
+        server.running = true
+        server.stopped = false
+        server.runServer()
     }
 
     companion object {
