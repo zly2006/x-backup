@@ -203,7 +203,7 @@ publishing {
 
 tasks.build {
     val subProjectTasks = listOf(
-        task(":cli:shadowJar")
+        project(":cli").tasks.shadowJar.get(),
     )
 
     subProjectTasks.forEach {

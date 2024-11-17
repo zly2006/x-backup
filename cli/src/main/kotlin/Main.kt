@@ -6,7 +6,7 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Database
 import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteDataSource
-import java.time.Instant
+import java.text.SimpleDateFormat
 import kotlin.io.path.*
 
 fun main() {
@@ -52,7 +52,9 @@ fun main() {
     val service = BackupDatabaseService(database, blobDir)
     println("Recent 10 backups:")
     service.listBackups(0, 10).forEach {
-        println("Backup ${it.id} at ${Instant.ofEpochMilli(it.created)}: ${it.comment}")
+        println("#${it.id} at ${
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").format(it.created)
+        }: ${it.comment}")
     }
 
     println("Goodbye!")
