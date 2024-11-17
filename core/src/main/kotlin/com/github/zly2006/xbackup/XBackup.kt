@@ -29,7 +29,10 @@ object XBackup : ModInitializer {
     val log = LoggerFactory.getLogger("XBackup")!!
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
+    @get:JvmName("isServerStarted")
     val serverStarted get() = ::server.isInitialized
+    var restoring = false
+    var serverStopHook: (MinecraftServer) -> Unit = {}
     // Backup
     var isBusy = false
 
@@ -75,6 +78,9 @@ object XBackup : ModInitializer {
 
             log.info("Restarting...")
             Runtime.getRuntime().exit(0)
+        }
+        ServerLifecycleEvents.SERVER_STARTING.register {
+            restoring = false
         }
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             this.server = server

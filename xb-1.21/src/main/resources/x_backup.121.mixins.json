@@ -16,6 +16,7 @@
     "MixinSPNH",
     "MixinStorageIoWorker",
     "MixinWorld",
+    "compat.MixinLuckPermsPlugin",
     "disable.MixinStorageIoWorker"
   ],
   "injectors": {

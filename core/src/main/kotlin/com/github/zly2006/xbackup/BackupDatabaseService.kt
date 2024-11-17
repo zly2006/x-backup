@@ -1,5 +1,7 @@
 package com.github.zly2006.xbackup
 
+import kotlinx.atomicfu.AtomicLong
+import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
 import kotlinx.io.IOException
 import kotlinx.serialization.Serializable
@@ -31,8 +33,11 @@ class BackupDatabaseService(
     }
     private val ignoredFiles = setOf(
         "x_backup.db",
+        "x_backup.db-wal",
+        "x_backup.db-shm",
         "x_backup.db-journal",
         "session.lock",
+        "fake_player.gca.json"
     )
 
     override val coroutineContext: CoroutineContext
@@ -82,7 +87,11 @@ class BackupDatabaseService(
         val hash: String,
         val gzip: Boolean,
         val cloudDriveId: Byte?,
-    )
+    ) {
+        override fun toString(): String {
+            return "$id:/$path"
+        }
+    }
 
     @Serializable
     class Backup(
@@ -190,8 +199,7 @@ class BackupDatabaseService(
                             if (MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
                                     .joinToString("") { "%02x".format(it) } != backupEntry.hash
                             ) {
-                                XBackup.log.error("File hash mismatch when creating backup, file: $path, expected: ${backupEntry.hash}")
-                                error("File hash mismatch")
+                                error("File hash mismatch when creating backup, file: $path, expected: ${backupEntry.hash}")
                             }
                         }
                         newEntries.add(backupEntry)
@@ -230,7 +238,7 @@ class BackupDatabaseService(
         )
     }
 
-    private suspend fun <T> retry(times: Int, function: suspend () -> T): T {
+    private suspend inline fun <T> retry(times: Int, function: () -> T): T {
         var lastException: Throwable? = null
         repeat(times) {
             try {
@@ -241,7 +249,7 @@ class BackupDatabaseService(
                 delay(1000)
             }
         }
-        throw lastException!!
+        throw RuntimeException("Retry failed", lastException)
     }
 
     suspend fun deleteBackup(id: Int) {
@@ -296,7 +304,8 @@ class BackupDatabaseService(
                         it.deleteRecursively()
                     }
                 }
-                map.map {
+                val done = atomic(0)
+                val deferredList = map.map {
                     this@BackupDatabaseService.async {
                         val path = target.resolve(it.key).normalize().createParentDirectories()
                         if (it.value.lastModified == path.toFile().lastModified() && it.value.size == path.fileSize()) {
@@ -350,14 +359,25 @@ class BackupDatabaseService(
                                     }
                                     require(path.fileSize() == it.value.size)
                                     path.toFile().setLastModified(it.value.lastModified)
-                                    XBackup.log.info("Restored file ${it.key}")
+                                    val done = done.incrementAndGet()
+                                    if (done % 30 == 0) {
+                                        XBackup.log.info("[X Backup] Restored $done files // current: ${it.key}")
+                                    }
                                 }
                             }
                         } catch (e: Exception) {
                             XBackup.log.error("", e)
                         }
                     }
-                }.awaitAll()
+                }
+                val reportJob = this@BackupDatabaseService.launch {
+                    while (done.value < map.size) {
+                        delay(5000)
+                        XBackup.log.info("[X Backup] Restored ${done.value}/${map.size} files")
+                    }
+                }
+                deferredList.awaitAll()
+                reportJob.cancelAndJoin()
                 XBackup.log.info("Restored backup $id")
             }
         }

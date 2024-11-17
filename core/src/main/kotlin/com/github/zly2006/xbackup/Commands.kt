@@ -3,7 +3,6 @@ package com.github.zly2006.xbackup
 import RestartUtils
 import com.github.zly2006.xbackup.Utils.broadcast
 import com.github.zly2006.xbackup.Utils.finishRestore
-import com.github.zly2006.xbackup.Utils.prepareRestore
 import com.github.zly2006.xbackup.Utils.save
 import com.github.zly2006.xbackup.Utils.send
 import com.github.zly2006.xbackup.Utils.setAutoSaving
@@ -13,7 +12,6 @@ import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.context.CommandContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -141,20 +139,29 @@ object Commands {
                                     doRestore(id, it, path) {
                                         val p = path.resolve(it).normalize()
                                         if (!Utils.service.isFileInWorld(world, p)) {
+                                            XBackup.log.debug("[XB] $p is not in world $world, skipping")
                                             return@doRestore false
                                         }
                                         if (p.extension == "mca") {
                                             val x = p.fileName.toString().split(".")[1].toInt()
                                             val z = p.fileName.toString().split(".")[2].toInt()
-                                            return@doRestore (x shr 9) >= min((from.x shr 9), (to.x shr 9)) && (x shr 9) <= max((from.x shr 9), (to.x shr 9)) && (z shr 9) >= min((from.z shr 9), (to.z shr 9)) && (z shr 9) <= max((from.z shr 9), (to.z shr 9))
+                                            if ((x shr 9) >= min(from.x, to.x) shr 9 && (x shr 9) <= max(from.x, to.x) shr 9 && (z shr 9) >= min(from.z, to.z) shr 9 && (z shr 9) <= max(from.z, to.z) shr 9) {
+                                                return@doRestore true
+                                            }
+                                            XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
+                                            false
                                         }
                                         else if (p.extension == "mcc") {
                                             val x = p.fileName.toString().split(".")[1].toInt()
                                             val z = p.fileName.toString().split(".")[2].toInt()
-                                            return@doRestore (x shr 4) >= min((from.x shr 4), (to.x shr 4)) && (x shr 4) <= max((from.x shr 4), (to.x shr 4)) && (z shr 4) >= min((from.z shr 4), (to.z shr 4)) && (z shr 4) <= max((from.z shr 4), (to.z shr 4))
+                                            if ((x shr 4) >= min(from.x, to.x) shr 4 && (x shr 4) <= max(from.x, to.x) shr 4 && (z shr 4) >= min(from.z, to.z) shr 4 && (z shr 4) <= max(from.z, to.z) shr 4) {
+                                                return@doRestore true
+                                            }
+                                            XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
+                                            false
                                         }
                                         else {
-                                            return@doRestore false
+                                            false
                                         }
                                     }
                                     1
@@ -171,47 +178,6 @@ object Commands {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
                         doRestore(id, it, path)
-                        1
-                    }
-                }
-                literal("inspect") {
-                    // send the json details to the player
-                    argument("id", IntegerArgumentType.integer(1)).executes {
-                        val id = IntegerArgumentType.getInteger(it, "id")
-                        XBackup.ensureNotBusy {
-                            val backup = XBackup.service.getBackup(id)
-                            if (backup == null) {
-                                it.source.sendError(Text.of("Backup #$id not found"))
-                                return@ensureNotBusy
-                            }
-
-                            it.source.send(literalText(Json.encodeToString(backup)))
-                        }
-                        1
-                    }
-                }
-                literal("login") {
-                    executes {
-                        XBackup.ensureNotBusy {
-                            XBackup.service.oneDriveService.initializeGraphForUserAuth(it.source, true)
-                        }
-                        1
-                    }
-                }
-                literal("upload") {
-                    argument("id", IntegerArgumentType.integer(1)).executes {
-                        val id = IntegerArgumentType.getInteger(it, "id")
-                        XBackup.ensureNotBusy {
-                            val backup = XBackup.service.getBackup(id)
-                            if (backup == null) {
-                                it.source.sendError(Text.of("Backup #$id not found"))
-                                return@ensureNotBusy
-                            }
-
-                            it.source.send(literalText("Uploading backup #$id..."))
-                            val result = XBackup.service.oneDriveService.uploadOneDrive(XBackup.service, backup.id)
-                            it.source.send(literalText("Backup #$id uploaded"))
-                        }
                         1
                     }
                 }
@@ -288,33 +254,77 @@ object Commands {
                         1
                     }
                 }
-                literal("export") {
+                literal("debug") {
+                    literal("inspect") {
+                        // send the json details to the player
+                        argument("id", IntegerArgumentType.integer(1)).executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            XBackup.ensureNotBusy {
+                                val backup = XBackup.service.getBackup(id)
+                                if (backup == null) {
+                                    it.source.sendError(Text.of("Backup #$id not found"))
+                                    return@ensureNotBusy
+                                }
 
-                }
-                literal("restart") {
-                    executes {
-                        Thread {
-                            when (Util.getOperatingSystem()) {
-                                Util.OperatingSystem.WINDOWS -> {
-                                    it.source.server.stop(true)
-                                    ProcessBuilder(
-                                        RestartUtils.generateWindowsRestartCommand()
-                                    ).start()
-                                }
-                                Util.OperatingSystem.LINUX, Util.OperatingSystem.OSX -> {
-                                    it.source.server.stop(true)
-                                    ProcessBuilder(
-                                        RestartUtils.generateUnixRestartCommand()
-                                    ).start()
-                                }
-                                else -> {
-                                    return@Thread
-                                }
+                                it.source.send(literalText(Json.encodeToString(backup)))
                             }
-                            XBackup.log.info("[X Backup] Your game will restart soon...")
-                            exitProcess(0)
-                        }.start()
-                        1
+                            1
+                        }
+                    }
+                    literal("login") {
+                        executes {
+                            XBackup.ensureNotBusy {
+                                XBackup.service.oneDriveService.initializeGraphForUserAuth(it.source, true)
+                            }
+                            1
+                        }
+                    }
+                    literal("upload") {
+                        argument("id", IntegerArgumentType.integer(1)).executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            XBackup.ensureNotBusy {
+                                val backup = XBackup.service.getBackup(id)
+                                if (backup == null) {
+                                    it.source.sendError(Text.of("Backup #$id not found"))
+                                    return@ensureNotBusy
+                                }
+
+                                it.source.send(literalText("Uploading backup #$id..."))
+                                val result = XBackup.service.oneDriveService.uploadOneDrive(XBackup.service, backup.id)
+                                it.source.send(literalText("Backup #$id uploaded"))
+                            }
+                            1
+                        }
+                    }
+                    literal("export") {
+                    }
+                    literal("restart") {
+                        executes {
+                            Thread {
+                                when (Util.getOperatingSystem()) {
+                                    Util.OperatingSystem.WINDOWS -> {
+                                        it.source.server.stop(true)
+                                        ProcessBuilder(
+                                            RestartUtils.generateWindowsRestartCommand()
+                                        ).start()
+                                    }
+
+                                    Util.OperatingSystem.LINUX, Util.OperatingSystem.OSX -> {
+                                        it.source.server.stop(true)
+                                        ProcessBuilder(
+                                            RestartUtils.generateUnixRestartCommand()
+                                        ).start()
+                                    }
+
+                                    else -> {
+                                        return@Thread
+                                    }
+                                }
+                                XBackup.log.info("[X Backup] Your game will restart soon...")
+                                exitProcess(0)
+                            }.start()
+                            1
+                        }
                     }
                 }
                 literal("backup-interval") {
@@ -354,35 +364,35 @@ object Commands {
         XBackup.disableSaving = false
 
         XBackup.ensureNotBusy(
-            context = if (it.source.server.isSingleplayer) {
-                Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
-            }
-            else {
-                it.source.server.asCoroutineDispatcher()
-            }
+            Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
         ) {
             if (XBackup.service.getBackup(id) == null) {
                 it.source.sendError(Text.of("Backup #$id not found"))
                 return@ensureNotBusy
             }
-            try {
-                XBackup.log.info("Preparing to restore...")
-                it.source.server.prepareRestore("Restoring backup #$id")
-                if (forceStop) {
-                    XBackup.service.restore(id, path) { !filter(it) }
-                    it.source.server.stop(false)
-                    return@ensureNotBusy
+            XBackup.restoring = true
+            XBackup.serverStopHook = {
+                try {
+                    XBackup.serverStopHook = {}
+                    runBlocking {
+                        XBackup.reason = "Restoring backup #$id"
+                        val result = XBackup.service.restore(id, path) { !filter(it) }
+                        XBackup.reason = "Restoring backup #$id finished, launching server"
+                    }
+                } catch (e: Throwable) {
+                    XBackup.log.error("[X Backup] Error while restoring backup #$id", e)
+                } finally {
+                    if (!forceStop && !it.isSingleplayer) {
+                        // restart the server
+                        XBackup.log.info("[X Backup] Restarting server...")
+                        XBackup.isBusy = false
+                        it.finishRestore()
+                    }
                 }
-
-                runBlocking {
-                    XBackup.reason = "Restoring backup #$id"
-                    val result = XBackup.service.restore(id, path) { !filter(it) }
-                    XBackup.reason = "Restoring backup #$id finished, launching server"
-                }
-            } finally {
-                it.source.server.finishRestore()
-                it.source.server.setAutoSaving(true)
             }
+            it.source.server.stop(false)
+            XBackup.log.info("[X Backup] Waiting for server to stop...")
+            it.source.server.thread.join()
         }
     }
 }

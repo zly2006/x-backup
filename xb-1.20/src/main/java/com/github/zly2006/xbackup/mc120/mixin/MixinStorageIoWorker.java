@@ -1,5 +1,6 @@
 package com.github.zly2006.xbackup.mc120.mixin;
 
+import com.github.zly2006.xbackup.XBackup;
 import com.github.zly2006.xbackup.multi.RestoreAware;
 import com.mojang.datafixers.util.Either;
 import net.minecraft.nbt.NbtCompound;
@@ -83,6 +84,9 @@ public abstract class MixinStorageIoWorker implements RestoreAware {
     @Overwrite
     private void writeResult() {
         try {
+            if (XBackup.INSTANCE.getDisableSaving()) {
+                return;
+            }
             if (!this.results.isEmpty()) {
                 Iterator<Map.Entry<ChunkPos, StorageIoWorker.Result>> iterator = this.results.entrySet().iterator();
                 Map.Entry<ChunkPos, StorageIoWorker.Result> entry = iterator.next();

@@ -165,4 +165,10 @@ class Impl : MultiVersioned {
         ).normalize()
         return p.normalize().startsWith(path)
     }
+
+    override fun kickAllPlayers(minecraftServer: MinecraftServer, reason: CrossVersionText) {
+        minecraftServer.playerManager.playerList.forEach {
+            it.networkHandler.disconnect(parseText(reason))
+        }
+    }
 }

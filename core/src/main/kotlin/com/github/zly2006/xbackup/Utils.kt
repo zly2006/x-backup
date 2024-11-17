@@ -6,34 +6,31 @@ import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
 import java.util.*
 
+@Suppress("NOTHING_TO_INLINE")
 object Utils {
     val onedriveSupport = FabricLoader.getInstance().isModLoaded("x_backup_onedrive")
 
-    val service by lazy {
+    val service: MultiVersioned by lazy {
         ServiceLoader.load(MultiVersioned::class.java).single()
     }
 
-    fun ServerCommandSource.send(text: CrossVersionText) {
+    inline fun ServerCommandSource.send(text: CrossVersionText) {
         service.sendMessage(this, text, false)
     }
 
-    fun MinecraftServer.setAutoSaving(value: Boolean) {
+    inline fun MinecraftServer.setAutoSaving(value: Boolean) {
         service.setAutoSaving(this, value)
     }
 
-    fun MinecraftServer.save() {
+    inline fun MinecraftServer.save() {
         service.save(this)
     }
 
-    fun MinecraftServer.prepareRestore(reason: String) {
-        service.prepareRestore(this, reason)
-    }
-
-    fun MinecraftServer.finishRestore() {
+    inline fun MinecraftServer.finishRestore() {
         service.finishRestore(this)
     }
 
-    fun MinecraftServer.broadcast(text: CrossVersionText) {
+    inline fun MinecraftServer.broadcast(text: CrossVersionText) {
         service.broadcast(this, text)
     }
 }

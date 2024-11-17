@@ -1,12 +1,11 @@
 package com.github.zly2006.xbackup.mc121_2.mixin;
 
+import com.github.zly2006.xbackup.XBackup;
 import com.github.zly2006.xbackup.multi.RestoreAware;
 import com.mojang.datafixers.util.Either;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.thread.PrioritizedConsecutiveExecutor;
-import net.minecraft.util.thread.TaskExecutor;
-import net.minecraft.util.thread.TaskQueue;
 import net.minecraft.world.storage.RegionBasedStorage;
 import net.minecraft.world.storage.StorageIoWorker;
 import org.spongepowered.asm.mixin.*;
@@ -67,7 +66,7 @@ public abstract class MixinStorageIoWorker implements RestoreAware {
     }
 
     @Inject(
-            method = "run",
+            method = "run*",
             at = @At("HEAD"),
             cancellable = true
     )
@@ -84,6 +83,9 @@ public abstract class MixinStorageIoWorker implements RestoreAware {
     @Overwrite
     private void writeResult() {
         try {
+            if (XBackup.INSTANCE.getDisableSaving()) {
+                return;
+            }
             if (!this.results.isEmpty()) {
                 Iterator<Map.Entry<ChunkPos, StorageIoWorker.Result>> iterator = this.results.entrySet().iterator();
                 Map.Entry<ChunkPos, StorageIoWorker.Result> entry = iterator.next();

@@ -25,4 +25,6 @@ interface MultiVersioned {
     fun isFileInWorld(world: ServerWorld, p: Path): Boolean
 
     fun broadcast(server: MinecraftServer, text: CrossVersionText)
+
+    fun kickAllPlayers(minecraftServer: MinecraftServer, reason: CrossVersionText)
 }
