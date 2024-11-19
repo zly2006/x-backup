@@ -29,14 +29,14 @@ group = mod.group
 base { archivesName.set(mod.id) }
 
 loom {
-    splitEnvironmentSourceSets()
-
-    mods {
-        create(project.property("mod.id") as String) {
-            sourceSet(sourceSets["main"])
-            sourceSet(sourceSets["client"])
-        }
-    }
+//    splitEnvironmentSourceSets()
+//
+//    mods {
+//        create(project.property("mod.id") as String) {
+//            sourceSet(sourceSets["main"])
+//            sourceSet(sourceSets["client"])
+//        }
+//    }
 
     accessWidenerPath = rootProject.file("src/main/resources/xb.shared.accesswidener")
 }

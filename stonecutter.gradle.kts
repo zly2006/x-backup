@@ -9,7 +9,7 @@ plugins {
     //id("dev.kikugie.j52j") version "1.0.2" apply false
     //id("me.modmuss50.mod-publish-plugin") version "0.7.+" apply false // Publishes builds to hosting websites
 }
-stonecutter active "1.21.1" /* [SC] DO NOT EDIT */
+stonecutter active "1.20.1" /* [SC] DO NOT EDIT */
 
 subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
@@ -30,7 +30,7 @@ subprojects {
     }
 
     base {
-        archivesName = property("mod.id") as String + name
+        archivesName = property("mod.id") as String + "-" + name
     }
 }
 
@@ -64,7 +64,7 @@ stonecutter configureEach {
     // Swaps replace the scope with a predefined value
     swap("mod_version", "\"${property("mod.version")}\";")
     // Constants add variables available in conditions
-    const("release", property("mod.id") != "template")
+//    const("release", property("mod.id") != "template")
     // Dependencies add targets to check versions against
     // Using `project.property()` in this block gets the versioned property
     dependency("fapi", project.property("deps.fabric_api").toString())
