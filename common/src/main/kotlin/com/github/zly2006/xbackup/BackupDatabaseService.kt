@@ -106,6 +106,21 @@ class BackupDatabaseService(
         val entries: List<BackupEntry>,
     )
 
+    data class XBackupStatus(
+        val blobDiskUsage: Long,
+        val actualUsage: Long,
+        val backupCount: Long,
+        val latestBackup: Backup?,
+    )
+
+    suspend fun status() {
+        val blobDiskUsage = blobDir.toFile().walk().filter { it.isFile }.sumOf { it.length() }
+        val actualUsage = dbQuery { BackupEntryTable.selectAll().sumOf { it[BackupEntryTable.zippedSize] } }
+        val backupCount = dbQuery { BackupTable.selectAll().count() }
+        val latestBackup = getLatestBackup()
+        XBackupStatus(blobDiskUsage, actualUsage, backupCount, latestBackup)
+    }
+
     suspend fun createBackup(root: Path, comment: String, predicate: (Path) -> Boolean): BackupResult {
         val timeStart = System.currentTimeMillis()
 
