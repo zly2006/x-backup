@@ -119,25 +119,12 @@ class BackupDatabaseService(
                 retry(5) {
                     try {
                         val path = root.normalize().relativize(sourceFile.toPath()).normalize()
-                        val md5 = if (sourceFile.isFile) {
-                            sourceFile.inputStream().use { input ->
-                                val digest = MessageDigest.getInstance("MD5")
-                                val buffer = ByteArray(8192)
-                                var read: Int
-                                while (input.read(buffer).also { read = it } > 0) {
-                                    digest.update(buffer, 0, read)
-                                }
-                                digest.digest()
-                            }.joinToString("") { "%02x".format(it) }
-                        }
-                        else ""
                         val existing = dbQuery {
                             BackupEntryTable.selectAll().where {
                                 BackupEntryTable.path eq path.toString() and
                                         (BackupEntryTable.isDirectory eq sourceFile.isDirectory) and
                                         (BackupEntryTable.size eq sourceFile.length()) and
-                                        (BackupEntryTable.lastModified eq sourceFile.lastModified()) and
-                                        (BackupEntryTable.hash eq md5)
+                                        (BackupEntryTable.lastModified eq sourceFile.lastModified())
                             }.firstOrNull()?.toBackupEntry()
                         }
                         if (existing != null) {
@@ -150,6 +137,18 @@ class BackupDatabaseService(
                                 }
                             }
                         }
+                        val md5 = if (sourceFile.isFile) {
+                            sourceFile.inputStream().use { input ->
+                                val digest = MessageDigest.getInstance("MD5")
+                                val buffer = ByteArray(8192)
+                                var read: Int
+                                while (input.read(buffer).also { read = it } > 0) {
+                                    digest.update(buffer, 0, read)
+                                }
+                                digest.digest()
+                            }.joinToString("") { "%02x".format(it) }
+                        }
+                        else ""
                         dbQuery {
                             BackupEntryTable.selectAll().where {
                                 BackupEntryTable.hash eq md5
@@ -230,8 +229,6 @@ class BackupDatabaseService(
                 }
             }
             backup
-        }
-        dbQuery {
         }
         return BackupResult(
             true,

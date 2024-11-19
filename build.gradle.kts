@@ -121,6 +121,15 @@ tasks.processResources {
     )
 
     filesMatching("fabric.mod.json") { expand(map) }
+
+    dependsOn(project(":common").tasks.processResources)
+    doLast {
+        // copying this is for dev only, int here is a shadowJar task
+        copy {
+            from(project(":common").tasks.processResources.get().outputs.files)
+            into(outputs.files.first())
+        }
+    }
 }
 
 tasks.register<Copy>("buildAndCollect") {

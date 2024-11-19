@@ -1,7 +1,6 @@
 package com.github.zly2006.xbackup
 
 import RestartUtils
-import com.github.zly2006.xbackup.Commands.sizeToString
 import com.github.zly2006.xbackup.Utils.broadcast
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import kotlinx.coroutines.*
@@ -149,7 +148,7 @@ object XBackup : ModInitializer {
                     if (backup == null || (System.currentTimeMillis() - backup.created) / 1000 > config.backupInterval) {
                         try {
                             isBusy = true
-                            server.broadcast(literalText("Running scheduled backup, please wait..."))
+                            server.broadcast(Text.translatable("message.xb.scheduled_backup"))
                             val (_, _, backId, totalSize, compressedSize, addedSize, millis) = service.createBackup(
                                 server.getSavePath(WorldSavePath.ROOT).toAbsolutePath(),
                                 "Scheduled backup"
@@ -163,11 +162,9 @@ object XBackup : ModInitializer {
                                 log.error("Error backing up database", e)
                             }
                             server.broadcast(
-                                literalText(
-                                    "Scheduled backup #$backId finished, ${sizeToString(totalSize)} " +
-                                            "(${sizeToString(compressedSize)} after compression) " +
-                                            "+${sizeToString(addedSize)} " +
-                                            "in ${millis}ms"
+                                Text.translatable(
+                                    "message.xb.scheduled_backup_finished",
+                                    backupIdText(backId), sizeText(totalSize), sizeText(compressedSize), sizeText(addedSize), millis
                                 )
                             )
                         } catch (e: Exception) {
