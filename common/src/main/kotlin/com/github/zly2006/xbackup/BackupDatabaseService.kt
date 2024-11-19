@@ -35,6 +35,7 @@ class BackupDatabaseService(
     }
     
     private val ignoredFiles = setOf(
+        "", // empty string is the root directory
         "x_backup.db.back",
         "x_backup.db",
         "x_backup.db-wal",
@@ -295,7 +296,7 @@ class BackupDatabaseService(
     suspend fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) = dbQuery {
         val backup = getBackup(id) ?: error("Backup not found")
         val map = backup.entries.associateBy { it.path }.filter { !ignored(Path(it.key)) }
-        for (it in target.toFile().walk()) {
+        for (it in target.normalize().toFile().walk().drop(1)) {
             val path = target.normalize().relativize(it.toPath()).normalize()
             if (it.name in ignoredFiles || ignored(path))
                 continue

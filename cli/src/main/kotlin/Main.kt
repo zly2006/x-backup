@@ -27,7 +27,7 @@ fun main() {
         }
     )
 
-    var gameRoot = Path(".").absolute()
+    var gameRoot = Path(".").absolute().normalize()
     while (!gameRoot.resolve("config").isDirectory()) {
         gameRoot = gameRoot.parent
     }
@@ -43,7 +43,7 @@ fun main() {
         println("Warning: Config file not found, using default config")
     }
 
-    val blobDir = gameRoot.resolve(config.blobPath)
+    val blobDir = gameRoot.resolve(config.blobPath).normalize()
     if (!blobDir.isDirectory()) {
         println("Fatal: Blob directory not found.")
         return

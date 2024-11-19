@@ -22,9 +22,7 @@ import org.sqlite.SQLiteConnection
 import org.sqlite.SQLiteDataSource
 import java.io.File
 import kotlin.coroutines.CoroutineContext
-import kotlin.io.path.exists
-import kotlin.io.path.readText
-import kotlin.io.path.writeText
+import kotlin.io.path.*
 
 object XBackup : ModInitializer {
     lateinit var config: Config
@@ -141,7 +139,7 @@ object XBackup : ModInitializer {
                     url = "jdbc:sqlite:$worldPath/x_backup.db"
                 }
             )
-            service = BackupDatabaseService(database, worldPath.normalize().parent.resolve(config.blobPath), config)
+            service = BackupDatabaseService(database, Path(".").absolute().resolve(config.blobPath).normalize(), config)
             crontabJob = GlobalScope.launch {
                 while (true) {
                     delay(10000)
