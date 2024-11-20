@@ -5,6 +5,8 @@ build/
 out/
 classes/
 
+mrtoken
+
 # eclipse
 
 *.launch

@@ -7,7 +7,7 @@ plugins {
     id("io.github.goooler.shadow") version "8.1.7" apply false
     base
     //id("dev.kikugie.j52j") version "1.0.2" apply false
-    //id("me.modmuss50.mod-publish-plugin") version "0.7.+" apply false // Publishes builds to hosting websites
+    id("me.modmuss50.mod-publish-plugin") version "0.7.+" apply false // Publishes builds to hosting websites
 }
 stonecutter active "1.20.1" /* [SC] DO NOT EDIT */
 
@@ -40,12 +40,6 @@ stonecutter registerChiseled tasks.register("chiseledBuild", stonecutter.chisele
     ofTask("buildAndCollect")
 
     dependsOn(project(":cli").tasks.named("shadowJar"))
-    doLast {
-        copy {
-            from(project(":cli").tasks.named("shadowJar").get().outputs.files)
-            into("build/libs")
-        }
-    }
 }
 
 /*

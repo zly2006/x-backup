@@ -11,6 +11,14 @@ import java.nio.file.Path
 
 @Suppress("NOTHING_TO_INLINE")
 object Utils {
+    fun translate(key: String, vararg args: Any): Text {
+        return Text.translatableWithFallback(
+            key,
+            I18n.langMap[key],
+            args
+        )
+    }
+
     val onedriveSupport = FabricLoader.getInstance().isModLoaded("x_backup_onedrive")
 
     inline fun ServerCommandSource.send(text: Text) {

@@ -148,7 +148,7 @@ object XBackup : ModInitializer {
                     if (backup == null || (System.currentTimeMillis() - backup.created) / 1000 > config.backupInterval) {
                         try {
                             isBusy = true
-                            server.broadcast(Text.translatable("message.xb.scheduled_backup"))
+                            server.broadcast(Utils.translate("message.xb.scheduled_backup"))
                             val (_, _, backId, totalSize, compressedSize, addedSize, millis) = service.createBackup(
                                 server.getSavePath(WorldSavePath.ROOT).toAbsolutePath(),
                                 "Scheduled backup"
@@ -162,7 +162,7 @@ object XBackup : ModInitializer {
                                 log.error("Error backing up database", e)
                             }
                             server.broadcast(
-                                Text.translatable(
+                                Utils.translate(
                                     "message.xb.scheduled_backup_finished",
                                     backupIdText(backId), sizeText(totalSize), sizeText(compressedSize), sizeText(addedSize), millis
                                 )

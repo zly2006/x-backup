@@ -9,7 +9,7 @@ import java.io.InputStream
 object I18n {
     private val log = LoggerFactory.getLogger("X-Backup/I18n")!!
     const val DEFAULT_LANGUAGE = "en_us"
-    private val langMap = mutableMapOf<String, String>()
+    val langMap = mutableMapOf<String, String>()
     @ExperimentalSerializationApi
     fun setLanguage(lang: String) {
         try {

@@ -28,6 +28,7 @@ import net.minecraft.util.WorldSavePath
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.io.path.Path
 import kotlin.io.path.extension
 import kotlin.math.max
 import kotlin.math.min
@@ -84,7 +85,7 @@ object Commands {
         return runBlocking {
             XBackup.service.getBackup(id)
         } ?: throw SimpleCommandExceptionType(
-            Text.translatable("command.xb.backup_not_found", backupIdText(id))
+            Utils.translate("command.xb.backup_not_found", backupIdText(id))
         ).create()
     }
 
@@ -93,27 +94,27 @@ object Commands {
             literal("xb") {
                 literal("status") {
                     executes {
-                        it.source.send(Text.translatable("command.xb.status", if (XBackup.isBusy) "Busy" else "OK"))
+                        it.source.send(Utils.translate("command.xb.status", if (XBackup.isBusy) "Busy" else "OK"))
                         runBlocking {
                             val latest = XBackup.service.getLatestBackup()
                             if (latest != null) {
                                 it.source.send(
-                                    Text.translatable("command.xb.latest_backup", backupIdText(latest.id), latest.comment).apply {
-                                        hover(Text.translatable("command.xb.click_view_details"))
+                                    Utils.translate("command.xb.latest_backup", backupIdText(latest.id), latest.comment).apply {
+                                        hover(Utils.translate("command.xb.click_view_details"))
                                         clickRun("/xb info ${latest.id}")
                                     }
                                 )
                                 if (XBackup.config.backupInterval != 0 && !XBackup.config.mirrorMode) {
                                     val next = latest.created + XBackup.config.backupInterval * 1000
                                     it.source.send(
-                                        Text.translatable(
+                                        Utils.translate(
                                             "command.xb.next_backup",
                                             dateTimeText(next)
                                         )
                                     )
                                 }
                             } else {
-                                it.source.send(Text.translatable("command.xb.no_backups"))
+                                it.source.send(Utils.translate("command.xb.no_backups"))
                             }
                         }
                         1
@@ -129,17 +130,17 @@ object Commands {
                             }
                             val backups = XBackup.service.listBackups(offset, 6)
                             if (backups.isEmpty()) {
-                                it.source.send(Text.translatable("command.xb.no_backups_found"))
+                                it.source.send(Utils.translate("command.xb.no_backups_found"))
                             } else {
-                                it.source.send(Text.translatable("command.xb.backups"))
+                                it.source.send(Utils.translate("command.xb.backups"))
                                 backups.forEach { backup ->
                                     it.source.send(
-                                        Text.translatable(
+                                        Utils.translate(
                                             "command.xb.backup_details",
                                             backupIdText(backup.id), backup.comment, sizeText(backup.size),
                                             dateTimeText(backup.created)
                                         ).apply {
-                                            hover(Text.translatable("command.xb.click_view_details"))
+                                            hover(Utils.translate("command.xb.click_view_details"))
                                             clickRun("/xb info ${backup.id}")
                                         }
                                     )
@@ -151,7 +152,7 @@ object Commands {
                 }
                 literal("version") {
                     executes {
-                        it.source.send(Text.translatable("command.xb.version"))
+                        it.source.send(Utils.translate("command.xb.version"))
                         1
                     }
                 }
@@ -161,22 +162,22 @@ object Commands {
                         XBackup.ensureNotBusy {
                             val backup = getBackup(id)
                             it.source.send(
-                                Text.translatable(
+                                Utils.translate(
                                     "command.xb.backup_info",
                                     backupIdText(id), backup.comment, sizeText(backup.size),
                                     sizeText(backup.zippedSize),
                                     dateTimeText(backup.created)
                                 ).apply {
                                     append(
-                                        Text.translatable("command.xb.delete").apply {
-                                            hover(Text.translatable("command.xb.click_delete"))
+                                        Utils.translate("command.xb.delete").apply {
+                                            hover(Utils.translate("command.xb.click_delete"))
                                             clickRun("/xb delete $id")
                                         }
                                     )
-                                    append(Text.translatable("command.xb.space"))
+                                    append(Utils.translate("command.xb.space"))
                                     append(
-                                        Text.translatable("command.xb.restore").apply {
-                                            hover(Text.translatable("command.xb.click_restore"))
+                                        Utils.translate("command.xb.restore").apply {
+                                            hover(Utils.translate("command.xb.click_restore"))
                                             clickRun("/xb restore $id")
                                         }
                                     )
@@ -229,7 +230,7 @@ object Commands {
                             }
                             XBackup.ensureNotBusy {
                                 it.source.server.broadcast(
-                                    Text.translatable("command.xb.creating_backup", it.source.name)
+                                    Utils.translate("command.xb.creating_backup", it.source.name)
                                 )
                                 it.source.server.save()
                                 it.source.server.setAutoSaving(false)
@@ -237,7 +238,7 @@ object Commands {
                                 val result =
                                     XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
                                 it.source.server.broadcast(
-                                    Text.translatable(
+                                    Utils.translate(
                                         "command.xb.backup_finished",
                                         backupIdText(result.backId), it.source.name, sizeText(result.totalSize),
                                         sizeText(result.compressedSize), sizeText(result.addedSize), result.millis
@@ -255,7 +256,7 @@ object Commands {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         XBackup.ensureNotBusy {
                             XBackup.service.deleteBackup(getBackup(id).id)
-                            it.source.send(Text.translatable("command.xb.backup_deleted", backupIdText(id)))
+                            it.source.send(Utils.translate("command.xb.backup_deleted", backupIdText(id)))
                         }
                         1
                     }
@@ -326,7 +327,7 @@ object Commands {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             XBackup.ensureNotBusy {
                                 val backup = getBackup(id)
-                                it.source.send(Text.translatable("command.xb.json_details", Json.encodeToString(backup)))
+                                it.source.send(Utils.translate("command.xb.json_details", Json.encodeToString(backup)))
                             }
                             1
                         }
@@ -336,14 +337,27 @@ object Commands {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             XBackup.ensureNotBusy {
                                 val backup = getBackup(id)
-                                it.source.send(Text.translatable("command.xb.uploading_backup", backupIdText(id)))
+                                it.source.send(Utils.translate("command.xb.uploading_backup", backupIdText(id)))
                                 val result = XBackup.service.oneDriveService.uploadOneDrive(XBackup.service, backup.id)
-                                it.source.send(Text.translatable("command.xb.backup_uploaded", backupIdText(id)))
+                                it.source.send(Utils.translate("command.xb.backup_uploaded", backupIdText(id)))
                             }
                             1
                         }
                     }
                     literal("export") {
+                        argument("id", IntegerArgumentType.integer(1)).executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            XBackup.ensureNotBusy {
+                                val backup = getBackup(id)
+                                it.source.send(Utils.translate("command.xb.exporting_backup", backupIdText(id)))
+                                val result = XBackup.service.restore(
+                                    backup.id,
+                                    Path("export").resolve("backup-$id").normalize()
+                                ) { true }
+                                it.source.send(Utils.translate("command.xb.backup_exported", backupIdText(id)))
+                            }
+                            1
+                        }
                     }
                     literal("restart") {
                         executes {
@@ -379,12 +393,12 @@ object Commands {
                         executes {
                             XBackup.config.backupInterval = it.getArgument("seconds", Int::class.java)
                             XBackup.saveConfig()
-                            it.source.send(Text.translatable("command.xb.set_backup_interval", XBackup.config.backupInterval))
+                            it.source.send(Utils.translate("command.xb.set_backup_interval", XBackup.config.backupInterval))
                             1
                         }
                     }
                     executes {
-                        it.source.send(Text.translatable("command.xb.current_backup_interval", XBackup.config.backupInterval))
+                        it.source.send(Utils.translate("command.xb.current_backup_interval", XBackup.config.backupInterval))
                         1
                     }
                 }

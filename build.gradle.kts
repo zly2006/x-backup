@@ -5,7 +5,7 @@ plugins {
     kotlin("plugin.serialization") version "2.0.0"
     id("io.github.goooler.shadow") version "8.1.7"
     //id("dev.kikugie.j52j")
-    //id("me.modmuss50.mod-publish-plugin")
+    id("me.modmuss50.mod-publish-plugin")
 }
 
 class ModData {
@@ -29,15 +29,6 @@ group = mod.group
 base { archivesName.set(mod.id) }
 
 loom {
-//    splitEnvironmentSourceSets()
-//
-//    mods {
-//        create(project.property("mod.id") as String) {
-//            sourceSet(sourceSets["main"])
-//            sourceSet(sourceSets["client"])
-//        }
-//    }
-
     accessWidenerPath = rootProject.file("src/main/resources/xb.shared.accesswidener")
 }
 
@@ -165,7 +156,6 @@ tasks {
 }
 
 
-/*
 publishMods {
     file = tasks.remapJar.get().archiveFile
     additionalFiles.from(tasks.remapSourcesJar.get().archiveFile)
@@ -175,8 +165,8 @@ publishMods {
     type = STABLE
     modLoaders.add("fabric")
 
-    dryRun = providers.environmentVariable("MODRINTH_TOKEN")
-        .getOrNull() == null || providers.environmentVariable("CURSEFORGE_TOKEN").getOrNull() == null
+//    dryRun = providers.environmentVariable("MODRINTH_TOKEN")
+//        .getOrNull() == null || providers.environmentVariable("CURSEFORGE_TOKEN").getOrNull() == null
 
     modrinth {
         projectId = property("publish.modrinth").toString()
@@ -187,16 +177,16 @@ publishMods {
         }
     }
 
-    curseforge {
-        projectId = property("publish.curseforge").toString()
-        accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
-        minecraftVersions.add(mcVersion)
-        requires {
-            slug = "fabric-api"
-        }
-    }
+//    curseforge {
+//        projectId = property("publish.curseforge").toString()
+//        accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
+//        minecraftVersions.add(mcVersion)
+//        requires {
+//            slug = "fabric-api"
+//        }
+//    }
 }
-*/
+
 /*
 publishing {
     repositories {
