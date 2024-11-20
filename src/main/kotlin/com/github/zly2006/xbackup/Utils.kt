@@ -4,6 +4,7 @@ import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.server.world.ServerWorld
+import net.minecraft.text.MutableText
 import net.minecraft.text.Text
 import net.minecraft.util.WorldSavePath
 import net.minecraft.world.dimension.DimensionType
@@ -11,11 +12,11 @@ import java.nio.file.Path
 
 @Suppress("NOTHING_TO_INLINE")
 object Utils {
-    fun translate(key: String, vararg args: Any): Text {
+    inline fun translate(key: String, vararg args: Any): MutableText {
         return Text.translatableWithFallback(
             key,
             I18n.langMap[key],
-            args
+            *args
         )
     }
 

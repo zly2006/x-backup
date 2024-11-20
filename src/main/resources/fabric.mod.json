@@ -5,14 +5,13 @@
   "name": "${name}",
   "description": "This is an example description! Tell everyone what your mod is about!",
   "authors": [
-    "Me!"
+    "zly2006"
   ],
   "contact": {
-    "homepage": "https://fabricmc.net/",
-    "sources": "https://github.com/FabricMC/fabric-example-mod"
+    "sources": "https://github.com/zly2006/x-backup"
   },
   "license": "CC0-1.0",
-  "icon": "assets/template/icon.png",
+  "icon": "assets/x-backup/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [

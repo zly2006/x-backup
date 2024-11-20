@@ -34,12 +34,25 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.system.exitProcess
 
-fun dateTimeText(time: Long): MutableText =
-    Text.literal(SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").apply {
-        timeZone = TimeZone.getDefault()
-    }.format(time)).formatted(Formatting.GOLD)
+fun dateTimeText(time: Long): MutableText {
+    val text = if (System.currentTimeMillis() - time < 24 * 3600 * 1000) {
+        SimpleDateFormat("HH:mm").apply {
+            timeZone = TimeZone.getDefault()
+        }.format(time)
+    } else {
+        SimpleDateFormat("MM-dd HH:mm").apply {
+            timeZone = TimeZone.getDefault()
+        }.format(time)
+    }
+    return Text.literal(text).apply {
+        hover(Text.literal(SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").apply {
+            timeZone = TimeZone.getDefault()
+        }.format(time)))
+        formatted(Formatting.GOLD)!!
+    }
+}
 
-fun backupIdText(id: Int): MutableText = Text.literal("#$id").formatted(Formatting.AQUA)
+fun backupIdText(id: Int) = Text.literal("#$id").formatted(Formatting.AQUA)!!
 
 private fun sizeToString(bytes: Long): String {
     val kb = bytes / 1024.0
@@ -56,7 +69,7 @@ private fun sizeToString(bytes: Long): String {
     }
 }
 
-fun sizeText(bytes: Long): MutableText = Text.literal(sizeToString(bytes)).formatted(Formatting.GREEN)
+fun sizeText(bytes: Long) = Text.literal(sizeToString(bytes)).formatted(Formatting.GREEN)!!
 
 fun MutableText.hover(literalText: MutableText) {
     styled {
@@ -168,10 +181,12 @@ object Commands {
                                     sizeText(backup.zippedSize),
                                     dateTimeText(backup.created)
                                 ).apply {
+                                    append("\n")
                                     append(
                                         Utils.translate("command.xb.delete").apply {
-                                            hover(Utils.translate("command.xb.click_delete"))
+                                            hover(Utils.translate("command.xb.click_delete").formatted(Formatting.RED))
                                             clickRun("/xb delete $id")
+                                            formatted(Formatting.DARK_RED)
                                         }
                                     )
                                     append(Utils.translate("command.xb.space"))
@@ -179,6 +194,7 @@ object Commands {
                                         Utils.translate("command.xb.restore").apply {
                                             hover(Utils.translate("command.xb.click_restore"))
                                             clickRun("/xb restore $id")
+                                            formatted(Formatting.DARK_GREEN)
                                         }
                                     )
                                 }
@@ -226,7 +242,7 @@ object Commands {
                             val comment = try {
                                 StringArgumentType.getString(it, "comment")
                             } catch (_: IllegalArgumentException) {
-                                "Manual backup"
+                                I18n.langMap["command.xb.manual_backup"] ?: "Manual backup"
                             }
                             XBackup.ensureNotBusy {
                                 it.source.server.broadcast(

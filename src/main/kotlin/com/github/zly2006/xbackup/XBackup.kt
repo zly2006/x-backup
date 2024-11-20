@@ -4,6 +4,7 @@ import RestartUtils
 import com.github.zly2006.xbackup.Utils.broadcast
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import kotlinx.coroutines.*
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import net.fabricmc.api.ModInitializer
@@ -50,26 +51,26 @@ object XBackup : ModInitializer {
 
     fun loadConfig() {
         try {
-            config = Json.decodeFromString(configPath.readText())
-//            reloadLanguage(config.language)
+            config = (if (configPath.exists()) Json.decodeFromString(configPath.readText())
+            else Config())
+            config.language = I18n.setLanguage(config.language)
         } catch (e: Exception) {
-            log.error("Error loading language", e)
-            try {
-//                reloadLanguage("en_us")
-                config.language = "en_us"
-            } catch (e: Exception) {
-                log.error("Error loading default language", e)
-            }
+            log.error("Error loading config", e)
+            config = Config()
         }
         saveConfig()
     }
 
+    @OptIn(ExperimentalSerializationApi::class)
+    private val json = Json {
+        encodeDefaults = true
+        prettyPrint = true
+        allowTrailingComma = true
+    }
+
     fun saveConfig() {
         try {
-            configPath.writeText(Json {
-                encodeDefaults = true
-                prettyPrint = true
-            }.encodeToString(config))
+            configPath.writeText(json.encodeToString(config))
         } catch (e: Exception) {
             log.error("Error saving config", e)
         }
@@ -77,13 +78,7 @@ object XBackup : ModInitializer {
 
     override fun onInitialize() {
         runCatching {
-            if (configPath.exists())
-                loadConfig()
-            else {
-                config = Config()
-                saveConfig()
-            }
-//            reloadLanguage(config.language)
+            loadConfig()
         }
         if (config.mirrorMode) {
             if (config.mirrorFrom == null) {
@@ -148,10 +143,10 @@ object XBackup : ModInitializer {
                     if (backup == null || (System.currentTimeMillis() - backup.created) / 1000 > config.backupInterval) {
                         try {
                             isBusy = true
-                            server.broadcast(Utils.translate("message.xb.scheduled_backup"))
+                            server.broadcast(Utils.translate("message.xb.running_scheduled_backup"))
                             val (_, _, backId, totalSize, compressedSize, addedSize, millis) = service.createBackup(
                                 server.getSavePath(WorldSavePath.ROOT).toAbsolutePath(),
-                                "Scheduled backup"
+                                I18n.langMap["message.xb.scheduled_backup"] ?: "Scheduled backup",
                             ) { true }
                             val localBackup = File("x_backup.db.back")
                             localBackup.delete()

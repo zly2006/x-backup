@@ -10,10 +10,17 @@ object I18n {
     private val log = LoggerFactory.getLogger("X-Backup/I18n")!!
     const val DEFAULT_LANGUAGE = "en_us"
     val langMap = mutableMapOf<String, String>()
+
+    /**
+     * Try to set the language to the specified language code.
+     * If the language file is not found, the default language will be used.
+     * @return The language code that is actually set.
+     * @throws IllegalStateException If the default language file is not found.
+     */
     @ExperimentalSerializationApi
-    fun setLanguage(lang: String) {
+    fun setLanguage(langCode: String): String {
         try {
-            val lang = getLanguageFile(lang).use {
+            val lang = getLanguageFile(langCode).use {
                 Json.decodeFromStream<Map<String, String>>(it)
             }
             val english = getLanguageFile(DEFAULT_LANGUAGE).use {
@@ -22,6 +29,7 @@ object I18n {
             langMap.clear()
             langMap.putAll(english)
             langMap.putAll(lang)
+            return langCode
         } catch (e: Exception) {
             log.error("Error loading language", e)
             try {
@@ -30,6 +38,7 @@ object I18n {
                 }
                 langMap.clear()
                 langMap.putAll(english)
+                return DEFAULT_LANGUAGE
             } catch (e1: Exception) {
                 throw IllegalStateException("Error loading default language", e1).apply {
                     addSuppressed(e)
