@@ -34,7 +34,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.system.exitProcess
 
-fun dateTimeText(time: Long): MutableText {
+fun shortDateTimeText(time: Long): MutableText {
     val text = if (System.currentTimeMillis() - time < 24 * 3600 * 1000) {
         SimpleDateFormat("HH:mm").apply {
             timeZone = TimeZone.getDefault()
@@ -122,7 +122,7 @@ object Commands {
                                     it.source.send(
                                         Utils.translate(
                                             "command.xb.next_backup",
-                                            dateTimeText(next)
+                                            shortDateTimeText(next)
                                         )
                                     )
                                 }
@@ -151,7 +151,7 @@ object Commands {
                                         Utils.translate(
                                             "command.xb.backup_details",
                                             backupIdText(backup.id), backup.comment, sizeText(backup.size),
-                                            dateTimeText(backup.created)
+                                            shortDateTimeText(backup.created)
                                         ).apply {
                                             hover(Utils.translate("command.xb.click_view_details"))
                                             clickRun("/xb info ${backup.id}")
@@ -179,7 +179,11 @@ object Commands {
                                     "command.xb.backup_info",
                                     backupIdText(id), backup.comment, sizeText(backup.size),
                                     sizeText(backup.zippedSize),
-                                    dateTimeText(backup.created)
+                                    Text.literal(SimpleDateFormat("yyyy-MM-dd HH:mm:ss z").apply {
+                                        timeZone = TimeZone.getDefault()
+                                    }.format(backup.created)).apply {
+                                        formatted(Formatting.GOLD)!!
+                                    }
                                 ).apply {
                                     append("\n")
                                     append(

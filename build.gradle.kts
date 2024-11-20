@@ -114,6 +114,7 @@ tasks.processResources {
     filesMatching("fabric.mod.json") { expand(map) }
 
     dependsOn(project(":common").tasks.processResources)
+    outputs.upToDateWhen { false }
     doLast {
         // copying this is for dev only, int here is a shadowJar task
         copy {

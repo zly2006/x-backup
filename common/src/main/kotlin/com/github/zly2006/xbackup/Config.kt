@@ -16,7 +16,7 @@ class Config {
     val blobPath = "blob"
 
     @SerialName("backup_interval")
-    var backupInterval = 3600
+    var backupInterval = 10800
 
     @SerialName("mirror_mode")
     var mirrorMode: Boolean = false
