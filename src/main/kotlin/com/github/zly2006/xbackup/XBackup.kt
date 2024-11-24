@@ -11,6 +11,7 @@ import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.loader.api.FabricLoader
+import net.minecraft.client.MinecraftClient
 import net.minecraft.server.MinecraftServer
 import net.minecraft.text.Text
 import net.minecraft.util.Util
@@ -117,6 +118,10 @@ object XBackup : ModInitializer {
         }
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             this.server = server
+            kotlin.runCatching {
+                // sync client language to the integrated server
+                config.language = I18n.setLanguage(MinecraftClient.getInstance().options.language)
+            }
             val worldPath = if (config.mirrorMode) {
                 File(config.mirrorFrom!!).toPath().resolve("world")
             } else {

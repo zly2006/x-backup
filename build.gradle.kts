@@ -37,6 +37,7 @@ repositories {
         forRepository { maven(url) { name = alias } }
         filter { groups.forEach(::includeGroup) }
     }
+    mavenCentral()
     strictMaven("https://www.cursemaven.com", "CurseForge", "curse.maven")
     strictMaven("https://api.modrinth.com/maven", "Modrinth", "maven.modrinth")
 }
@@ -51,19 +52,8 @@ dependencies {
     modImplementation("net.fabricmc:fabric-loader:${deps["fabric_loader"]}")
     modImplementation("net.fabricmc:fabric-language-kotlin:${deps["kotlin_loader_version"]}")
 
-    if (false) {
-        fapi(
-            // Add modules from https://github.com/FabricMC/fabric
-            "fabric-lifecycle-events-v1",
-            "fabric-resource-loader-v0"
-        )
-
-        if (stonecutter.eval(stonecutter.current.version, ">=1.20")) {
-            fapi("fabric-command-api-v2")
-        }
-    } else {
-        modImplementation("net.fabricmc.fabric-api:fabric-api:${deps["fabric_api"]}")
-    }
+//    include(modImplementation("me.lucko:fabric-permissions-api:0.3.1")!!)
+    modImplementation("net.fabricmc.fabric-api:fabric-api:${deps["fabric_api"]}")
 
     api(project(":common"))
     shadow(project(":common", configuration = "shadow"))

@@ -122,12 +122,14 @@ class BackupDatabaseService(
     }
 
     suspend fun createBackup(root: Path, comment: String, predicate: (Path) -> Boolean): BackupResult {
+        if (blobDir.absolute().normalize().startsWith(root.absolute().normalize())) {
+            error("Blob directory cannot be inside the backup directory")
+        }
         val timeStart = System.currentTimeMillis()
 
         val newEntries = ConcurrentHashMap.newKeySet<BackupEntry>()
-        val entries = root.toFile().walk().filter {
-            it.name !in ignoredFiles && !it.toPath().normalize().startsWith(blobDir.normalize()) &&
-                    predicate(it.toPath())
+        val entries = root.normalize().toFile().walk().filter {
+            it.name !in ignoredFiles && predicate(it.toPath())
         }.map { sourceFile ->
             @Suppress("SuspendFunctionOnCoroutineScope")
             this.async(Dispatchers.IO) {
@@ -136,10 +138,13 @@ class BackupDatabaseService(
                         val path = root.normalize().relativize(sourceFile.toPath()).normalize()
                         val existing = dbQuery {
                             BackupEntryTable.selectAll().where {
-                                BackupEntryTable.path eq path.toString() and
-                                        (BackupEntryTable.isDirectory eq sourceFile.isDirectory) and
-                                        (BackupEntryTable.size eq sourceFile.length()) and
-                                        (BackupEntryTable.lastModified eq sourceFile.lastModified())
+                                var exp = BackupEntryTable.path eq path.toString() and
+                                        (BackupEntryTable.isDirectory eq sourceFile.isDirectory)
+                                if (sourceFile.isFile) {
+                                    exp = exp and (BackupEntryTable.size eq sourceFile.length()) and
+                                            (BackupEntryTable.lastModified eq sourceFile.lastModified())
+                                }
+                                exp
                             }.firstOrNull()?.toBackupEntry()
                         }
                         if (existing != null) {
@@ -243,6 +248,15 @@ class BackupDatabaseService(
                     it[this.entry] = entry.id
                 }
             }
+            // recheck
+            val entryList = backup.entries.filter {
+                !it.isDirectory &&
+                        (!getBlobFile(it.hash).exists() || getBlobFile(it.hash).fileSize() != it.zippedSize)
+            }
+            if (entryList.isNotEmpty()) {
+                log.error(entryList.toString())
+                error("Backup failed, ${entryList.size} files not backed up")
+            }
             backup
         }
         return BackupResult(
@@ -313,8 +327,12 @@ class BackupDatabaseService(
             if (it.name in ignoredFiles || ignored(path))
                 continue
             val entry = map[path.toString()]
-            if (entry == null || it.isDirectory != entry.isDirectory) {
-                log.info("[X Backup] Deleting $path")
+            if (entry == null && it.isFile) {
+                log.info("[X Backup] Deleting $path, not found in backup")
+                it.delete()
+            }
+            if (entry?.isDirectory != it.isDirectory) {
+                log.info("[X Backup] Deleting $path, directory mismatch")
                 it.deleteRecursively()
             }
         }
@@ -408,31 +426,40 @@ class BackupDatabaseService(
     suspend fun getLatestBackup(): Backup? = dbQuery {
         BackupTable.selectAll().lastOrNull()?.toBackup()
     }
+
+    fun backupCount() = transaction {
+        BackupTable.selectAll().count().toInt()
+    }
+
+    companion object {
+        private fun ResultRow.toBackup(): Backup {
+            val id = this[BackupTable.id].value
+            val entries =
+                BackupEntryBackupTable.select(BackupEntryBackupTable.entry).where {
+                    BackupEntryBackupTable.backup eq id
+                }
+            return Backup(
+                id,
+                this[BackupTable.size],
+                this[BackupTable.zippedSize],
+                this[BackupTable.created],
+                this[BackupTable.comment],
+                BackupEntryTable.selectAll().where {
+                    BackupEntryTable.id inSubQuery entries
+                }.map { it.toBackupEntry() }
+            )
+        }
+
+        private fun ResultRow.toBackupEntry() = BackupEntry(
+            this[BackupEntryTable.id].value,
+            this[BackupEntryTable.path],
+            this[BackupEntryTable.size],
+            this[BackupEntryTable.zippedSize],
+            this[BackupEntryTable.lastModified],
+            this[BackupEntryTable.isDirectory],
+            this[BackupEntryTable.hash],
+            this[BackupEntryTable.gzip],
+            this[BackupEntryTable.cloudDriveId].let { if (it == 0.toByte()) null else it },
+        )
+    }
 }
-
-private fun ResultRow.toBackup() = BackupDatabaseService.Backup(
-    this[BackupDatabaseService.BackupTable.id].value,
-    this[BackupDatabaseService.BackupTable.size],
-    this[BackupDatabaseService.BackupTable.zippedSize],
-    this[BackupDatabaseService.BackupTable.created],
-    this[BackupDatabaseService.BackupTable.comment],
-    BackupDatabaseService.BackupEntryTable.selectAll().where {
-        BackupDatabaseService.BackupEntryTable.id inSubQuery
-                BackupDatabaseService.BackupEntryBackupTable.select(BackupDatabaseService.BackupEntryBackupTable.entry)
-                    .where {
-                        BackupDatabaseService.BackupEntryBackupTable.backup eq this@toBackup[BackupDatabaseService.BackupTable.id]
-                    }
-    }.map { it.toBackupEntry() }
-)
-
-private fun ResultRow.toBackupEntry() = BackupDatabaseService.BackupEntry(
-    this[BackupDatabaseService.BackupEntryTable.id].value,
-    this[BackupDatabaseService.BackupEntryTable.path],
-    this[BackupDatabaseService.BackupEntryTable.size],
-    this[BackupDatabaseService.BackupEntryTable.zippedSize],
-    this[BackupDatabaseService.BackupEntryTable.lastModified],
-    this[BackupDatabaseService.BackupEntryTable.isDirectory],
-    this[BackupDatabaseService.BackupEntryTable.hash],
-    this[BackupDatabaseService.BackupEntryTable.gzip],
-    this[BackupDatabaseService.BackupEntryTable.cloudDriveId].let { if (it == 0.toByte()) null else it },
-)

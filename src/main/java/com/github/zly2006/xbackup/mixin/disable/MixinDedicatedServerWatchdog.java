@@ -17,7 +17,7 @@ public class MixinDedicatedServerWatchdog {
             at = @At(
                     value = "FIELD",
                     target = "Lnet/minecraft/server/dedicated/DedicatedServerWatchdog;maxTickTime:J",
-            ordinal = 0
+                    ordinal = 0
             )
     )
     private long redirectMaxTickTime(DedicatedServerWatchdog instance) {

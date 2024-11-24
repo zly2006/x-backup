@@ -14,8 +14,9 @@ import com.mojang.brigadier.context.CommandContext
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.encodeToString
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.encodeToStream
 import net.minecraft.command.argument.ColumnPosArgumentType
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.ClickEvent
@@ -29,7 +30,9 @@ import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.io.path.Path
+import kotlin.io.path.createParentDirectories
 import kotlin.io.path.extension
+import kotlin.io.path.outputStream
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.system.exitProcess
@@ -158,6 +161,13 @@ object Commands {
                                         }
                                     )
                                 }
+                                if (XBackup.service.backupCount() > offset + 6) {
+                                    it.source.send(Utils.translate("command.xb.more_backups").apply {
+                                        formatted(Formatting.GRAY)
+                                        hover(Utils.translate("command.xb.click_view_more"))
+                                        clickRun("/xb list ${offset + 6}")
+                                    })
+                                }
                             }
                             1
                         }
@@ -190,7 +200,7 @@ object Commands {
                                         Utils.translate("command.xb.delete").apply {
                                             hover(Utils.translate("command.xb.click_delete").formatted(Formatting.RED))
                                             clickRun("/xb delete $id")
-                                            formatted(Formatting.DARK_RED)
+                                            formatted(Formatting.RED)
                                         }
                                     )
                                     append(Utils.translate("command.xb.space"))
@@ -236,6 +246,7 @@ object Commands {
         }
     }
 
+    @OptIn(ExperimentalSerializationApi::class)
     private fun registerBackupMode(dispatcher: CommandDispatcher<ServerCommandSource>) {
         dispatcher.register {
             literal("xb") {
@@ -347,7 +358,13 @@ object Commands {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             XBackup.ensureNotBusy {
                                 val backup = getBackup(id)
-                                it.source.send(Utils.translate("command.xb.json_details", Json.encodeToString(backup)))
+                                val file = Path("export").resolve("backup-$id.json")
+                                    .toAbsolutePath()
+                                    .createParentDirectories()
+                                file.outputStream().use {
+                                    Json.encodeToStream(backup, it)
+                                }
+                                it.source.send(Text.literal("Saved backup details to $file"))
                             }
                             1
                         }
