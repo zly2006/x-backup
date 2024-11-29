@@ -449,7 +449,7 @@ class BackupDatabaseService(
                 log.error("Blob not found for file ${it.path}, hash: ${it.hash}")
                 valid = false
             }
-            else if (blobFile.fileSize() != it.zippedSize) {
+            else if (blobFile.fileSize() != it.zippedSize && !it.isDirectory) {
                 log.error("Blob size mismatch for file ${it.path}, expected: ${it.zippedSize}, actual: ${blobFile.fileSize()}")
                 valid = false
             }

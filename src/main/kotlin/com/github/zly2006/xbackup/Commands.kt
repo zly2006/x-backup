@@ -466,7 +466,7 @@ object Commands {
         forceStop: Boolean = false,
         filter: (Path) -> Boolean = { true },
     ) {
-        getBackup(id)
+        val backup = getBackup(id)
         // Note: on server thread
         XBackup.reason = "Auto-backup before restoring to #$id"
         XBackup.disableWatchdog = true
@@ -483,6 +483,10 @@ object Commands {
         XBackup.ensureNotBusy(
             Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
         ) {
+            if (!XBackup.service.check(backup)) {
+                it.source.sendError(Utils.translate("command.xb.backup_corrupted", backupIdText(id)))
+                return@ensureNotBusy
+            }
             XBackup.restoring = true
             XBackup.serverStopHook = {
                 try {
