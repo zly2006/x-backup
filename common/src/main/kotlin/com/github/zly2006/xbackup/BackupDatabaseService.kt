@@ -3,6 +3,8 @@ package com.github.zly2006.xbackup
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -125,6 +127,7 @@ class BackupDatabaseService(
         if (blobDir.absolute().normalize().startsWith(root.absolute().normalize())) {
             error("Blob directory cannot be inside the backup directory")
         }
+        val files = ConcurrentHashMap.newKeySet<String>()
         val timeStart = System.currentTimeMillis()
 
         val newEntries = ConcurrentHashMap.newKeySet<BackupEntry>()
@@ -136,6 +139,7 @@ class BackupDatabaseService(
                 retry(5) {
                     try {
                         val path = root.normalize().relativize(sourceFile.toPath()).normalize()
+                        files.add(path.toString())
                         val existing = dbQuery {
                             BackupEntryTable.selectAll().where {
                                 var exp = BackupEntryTable.path eq path.toString() and
@@ -234,6 +238,8 @@ class BackupDatabaseService(
                 }
             }
         }.toList().awaitAll()
+        require(files.size == entries.size)
+        Path("debug-backup.json").writeText(Json.encodeToString(files.toList()))
         log.info("[X Backup] Backed up ${entries.size} files, ${newEntries.size} new, ${entries.size - newEntries.size} files reused")
         val backup = dbQuery {
             val backup = BackupTable.insert {
@@ -331,7 +337,7 @@ class BackupDatabaseService(
                 log.info("[X Backup] Deleting $path, not found in backup")
                 it.delete()
             }
-            if (entry?.isDirectory != it.isDirectory) {
+            if (entry != null && entry.isDirectory != it.isDirectory) {
                 log.info("[X Backup] Deleting $path, directory mismatch")
                 it.deleteRecursively()
             }
@@ -339,8 +345,10 @@ class BackupDatabaseService(
         val done = atomic(0)
         val verbose = map.size < 100
         log.info("[X Backup] ${map.size} files to restore")
+        Path("debug-restore.json").writeText(Json.encodeToString(map.keys.toList()))
         val deferredList = map.map {
             this@BackupDatabaseService.async {
+                var worked = false
                 val path = target.resolve(it.key).normalize().createParentDirectories()
                 if (it.value.lastModified != path.toFile().lastModified() || it.value.size != path.fileSize()) {
                     retry(5) {
@@ -391,11 +399,12 @@ class BackupDatabaseService(
                             }
                             require(path.fileSize() == it.value.size)
                             path.toFile().setLastModified(it.value.lastModified)
+                            worked = true
                         }
                     }
                 }
                 val done = done.incrementAndGet()
-                if (done % 30 == 0 || verbose) {
+                if (verbose || done % 30 == 0 && worked) {
                     log.info("[X Backup] Restored $done files // current: ${it.key}")
                 }
             }
@@ -409,6 +418,25 @@ class BackupDatabaseService(
         deferredList.awaitAll()
         reportJob.cancelAndJoin()
         log.info("Restored backup $id")
+    }
+
+    /**
+     * Check if this backup is valid
+     */
+    fun check(backup: Backup): Boolean {
+        var valid = true
+        backup.entries.forEach {
+            val blobFile = getBlobFile(it.hash)
+            if (!blobFile.exists()) {
+                log.error("Blob not found for file ${it.path}, hash: ${it.hash}")
+                valid = false
+            }
+            else if (blobFile.fileSize() != it.zippedSize) {
+                log.error("Blob size mismatch for file ${it.path}, expected: ${it.zippedSize}, actual: ${blobFile.fileSize()}")
+                valid = false
+            }
+        }
+        return valid
     }
 
     suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =

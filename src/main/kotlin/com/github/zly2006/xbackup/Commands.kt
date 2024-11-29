@@ -424,6 +424,22 @@ object Commands {
                             1
                         }
                     }
+                    literal("check") {
+                        argument("id", IntegerArgumentType.integer(1)).executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            XBackup.ensureNotBusy {
+                                val backup = getBackup(id)
+                                it.source.send(Utils.translate("command.xb.checking_backup", backupIdText(id)))
+                                val result = XBackup.service.check(backup)
+                                if (result) {
+                                    it.source.send(Utils.translate("command.xb.backup_ok", backupIdText(id)))
+                                } else {
+                                    it.source.send(Utils.translate("command.xb.backup_corrupted", backupIdText(id)))
+                                }
+                            }
+                            1
+                        }
+                    }
                 }
                 literal("backup-interval") {
                     argument("seconds", IntegerArgumentType.integer()) {
