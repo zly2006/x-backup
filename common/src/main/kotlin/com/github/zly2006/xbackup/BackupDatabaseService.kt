@@ -82,7 +82,7 @@ class BackupDatabaseService(
     }
 
     @Serializable
-    class BackupEntry(
+    data class BackupEntry(
         val id: Int,
         val path: String,
         val size: Long,
@@ -212,17 +212,17 @@ class BackupDatabaseService(
                             zippedSize = 0
                         }
 
-                        val backupEntry = dbQuery {
-                            BackupEntryTable.insert {
-                                it[this.path] = path.toString()
-                                it[this.size] = sourceFile.length()
-                                it[this.lastModified] = sourceFile.lastModified()
-                                it[this.isDirectory] = sourceFile.isDirectory
-                                it[this.hash] = md5
-                                it[this.zippedSize] = zippedSize
-                                it[this.gzip] = gzip
-                            }
-                        }.resultedValues!!.single().toBackupEntry()
+                        val backupEntry = BackupEntry(
+                            id = -1,
+                            path = path.toString(),
+                            size = sourceFile.length(),
+                            lastModified = sourceFile.lastModified(),
+                            isDirectory = sourceFile.isDirectory,
+                            hash = md5,
+                            zippedSize = zippedSize,
+                            gzip = gzip,
+                            cloudDriveId = null,
+                        )
                         if (sourceFile.isFile) {
                             if (MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
                                     .joinToString("") { "%02x".format(it) } != backupEntry.hash
@@ -237,7 +237,25 @@ class BackupDatabaseService(
                     }
                 }
             }
-        }.toList().awaitAll()
+        }.toList().awaitAll().map { entry ->
+            if (entry.id == -1) {
+                // not yet in database
+                dbQuery {
+                    val id = BackupEntryTable.insertAndGetId {
+                        it[path] = entry.path
+                        it[size] = entry.size
+                        it[zippedSize] = entry.zippedSize
+                        it[lastModified] = entry.lastModified
+                        it[isDirectory] = entry.isDirectory
+                        it[hash] = entry.hash
+                        it[gzip] = entry.gzip
+                        it[cloudDriveId] = entry.cloudDriveId ?: 0
+                    }
+                    entry.copy(id = id.value)
+                }
+            }
+            else entry
+        }
         require(files.size == entries.size)
         Path("debug-backup.json").writeText(Json.encodeToString(files.toList()))
         log.info("[X Backup] Backed up ${entries.size} files, ${newEntries.size} new, ${entries.size - newEntries.size} files reused")
