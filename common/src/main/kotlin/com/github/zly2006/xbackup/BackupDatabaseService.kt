@@ -96,6 +96,11 @@ class BackupDatabaseService(
         override fun toString(): String {
             return "$id:/$path"
         }
+
+        fun valid(service: BackupDatabaseService): Boolean {
+            return isDirectory ||
+                    (service.getBlobFile(hash).exists() && (service.getBlobFile(hash).fileSize() == zippedSize))
+        }
     }
 
     @Serializable
@@ -149,7 +154,9 @@ class BackupDatabaseService(
                                             (BackupEntryTable.lastModified eq sourceFile.lastModified())
                                 }
                                 exp
-                            }.firstOrNull()?.toBackupEntry()
+                            }.map { it.toBackupEntry() }.firstOrNull {
+                                it.valid(this@BackupDatabaseService)
+                            }
                         }
                         if (existing != null) {
                             if (sourceFile.isDirectory) {
@@ -175,8 +182,12 @@ class BackupDatabaseService(
                         else ""
                         dbQuery {
                             BackupEntryTable.selectAll().where {
-                                BackupEntryTable.hash eq md5
-                            }.firstOrNull()?.toBackupEntry()
+                                BackupEntryTable.path eq path.toString() and
+                                        (BackupEntryTable.isDirectory eq sourceFile.isDirectory) and
+                                        (BackupEntryTable.hash eq md5)
+                            }.map { it.toBackupEntry() }.firstOrNull {
+                                it.valid(this@BackupDatabaseService)
+                            }
                         }?.let { return@retry it }
 
                         val blob = getBlobFile(md5)
@@ -445,11 +456,12 @@ class BackupDatabaseService(
         var valid = true
         backup.entries.forEach {
             val blobFile = getBlobFile(it.hash)
+            if (it.isDirectory) return@forEach
             if (!blobFile.exists()) {
                 log.error("Blob not found for file ${it.path}, hash: ${it.hash}")
                 valid = false
             }
-            else if (blobFile.fileSize() != it.zippedSize && !it.isDirectory) {
+            else if (blobFile.fileSize() != it.zippedSize) {
                 log.error("Blob size mismatch for file ${it.path}, expected: ${it.zippedSize}, actual: ${blobFile.fileSize()}")
                 valid = false
             }

@@ -344,6 +344,12 @@ object Commands {
                             doRestore(id, it, path, forceStop = true)
                             1
                         }
+                        literal("--force").executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                            doRestore(id, it, path, recheck = false)
+                            1
+                        }
                     }.executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
@@ -464,6 +470,7 @@ object Commands {
         it: CommandContext<ServerCommandSource>,
         path: Path,
         forceStop: Boolean = false,
+        recheck: Boolean = true,
         filter: (Path) -> Boolean = { true },
     ) {
         val backup = getBackup(id)
@@ -483,7 +490,7 @@ object Commands {
         XBackup.ensureNotBusy(
             Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
         ) {
-            if (!XBackup.service.check(backup)) {
+            if (recheck && !XBackup.service.check(backup)) {
                 it.source.sendError(Utils.translate("command.xb.backup_corrupted", backupIdText(id)))
                 return@ensureNotBusy
             }
