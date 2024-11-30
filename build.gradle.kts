@@ -124,6 +124,14 @@ tasks.register<Copy>("buildAndCollect") {
 }
 
 tasks {
+    compileKotlin {
+        outputs.upToDateWhen { false }
+    }
+
+    compileJava {
+        outputs.upToDateWhen { false }
+    }
+
     shadowJar {
         from("LICENSE")
 

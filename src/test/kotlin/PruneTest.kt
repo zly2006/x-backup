@@ -8,6 +8,6 @@ class PruneTest {
 
     @Test
     fun test() {
-        assertEquals(271, Config.PruneConfig().prune(data).size)
+        assertEquals(272, Config.PruneConfig().prune(data).size)
     }
 }
