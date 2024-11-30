@@ -181,7 +181,13 @@ object XBackup : ModInitializer {
                             } catch (e: Exception) {
                                 log.error("Error backing up database", e)
                             }
-                            Files.move(localBackup.toPath(), Path("xb.backups").resolve(backId.toString()).resolve("x_backup.db"))
+                            Files.move(
+                                localBackup.toPath(),
+                                Path("xb.backups")
+                                    .resolve(backId.toString())
+                                    .resolve("x_backup.db")
+                                    .createParentDirectories()
+                            )
                             server.broadcast(
                                 Utils.translate(
                                     "message.xb.scheduled_backup_finished",

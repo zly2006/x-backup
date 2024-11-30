@@ -26,6 +26,7 @@
   "command.xb.restore": "回档",
   "command.xb.set_backup_interval": "备份间隔设置为 %s 秒。",
   "command.xb.space": "  ",
+  "command.xb.statistics": "总备份数: %s, 总磁盘使用量: %s, 实际磁盘使用量 (仅计算有效备份): %s",
   "command.xb.status": "X Backup 状态: %s",
   "command.xb.uploading_backup": "正在上传备份 %s...",
   "command.xb.version": "X Backup %s https://github.com/zly2006/x-backup",

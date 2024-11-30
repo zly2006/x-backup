@@ -111,7 +111,7 @@ object Commands {
                 literal("status") {
                     executes {
                         it.source.send(Utils.translate("command.xb.status", if (XBackup.isBusy) "Busy" else "OK"))
-                        runBlocking {
+                        XBackup.ensureNotBusy {
                             val latest = XBackup.service.getLatestBackup()
                             if (latest != null) {
                                 it.source.send(
@@ -119,6 +119,13 @@ object Commands {
                                         hover(Utils.translate("command.xb.click_view_details"))
                                         clickRun("/xb info ${latest.id}")
                                     }
+                                )
+                                val status = XBackup.service.status()
+                                it.source.send(
+                                    Utils.translate(
+                                        "command.xb.statistics",
+                                        status.backupCount, sizeText(status.blobDiskUsage), sizeText(status.actualUsage)
+                                    )
                                 )
                                 if (XBackup.config.backupInterval != 0 && !XBackup.config.mirrorMode) {
                                     val next = latest.created + XBackup.config.backupInterval * 1000

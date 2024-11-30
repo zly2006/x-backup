@@ -26,6 +26,7 @@
   "command.xb.restore": "Restore",
   "command.xb.set_backup_interval": "Backup interval set to %s seconds.",
   "command.xb.space": "  ",
+  "command.xb.statistics": "Total backups: %s, Blob disk usage: %s, Actual disk usage (only count valid backups): %s",
   "command.xb.status": "X Backup status: %s",
   "command.xb.uploading_backup": "Uploading backup %s...",
   "command.xb.version": "X Backup %s https://github.com/zly2006/x-backup",
