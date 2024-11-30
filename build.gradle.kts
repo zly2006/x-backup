@@ -97,7 +97,7 @@ tasks.processResources {
     val map = mapOf(
         "id" to mod.id,
         "name" to mod.name,
-        "version" to mod.version,
+        "version" to version.toString(),
         "mcdep" to mcDep
     )
 
@@ -149,7 +149,6 @@ tasks {
 
 publishMods {
     file = tasks.remapJar.get().archiveFile
-    additionalFiles.from(tasks.remapSourcesJar.get().archiveFile)
     displayName = "${mod.name} ${mod.version} for $mcVersion"
     version = mod.version
     changelog = rootProject.file("CHANGELOG.md").readText()
