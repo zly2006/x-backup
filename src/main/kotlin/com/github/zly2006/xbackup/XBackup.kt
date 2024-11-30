@@ -147,7 +147,9 @@ object XBackup : ModInitializer {
                     val backup = service.getLatestBackup()
                     if (isBusy) continue
                     if (config.pruneConfig.enabled) {
-                        val idToTime = service.listBackups(0, Int.MAX_VALUE).associate { it.id.toString() to it.created }
+                        val idToTime = service.listBackups(0, Int.MAX_VALUE)
+                            .filter { !it.temporary }
+                            .associate { it.id.toString() to it.created }
                         val toPrune = config.pruneConfig.prune(idToTime)
                         if (toPrune.isNotEmpty()) {
                             try {

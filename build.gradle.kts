@@ -47,6 +47,8 @@ dependencies {
         modImplementation(fabricApi.module(it, deps["fabric_api"]))
     }
 
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.6.10")
+
     minecraft("com.mojang:minecraft:$mcVersion")
     mappings("net.fabricmc:yarn:$mcVersion+build.${deps["yarn_build"]}:v2")
     modImplementation("net.fabricmc:fabric-loader:${deps["fabric_loader"]}")
@@ -97,7 +99,7 @@ tasks.processResources {
     val map = mapOf(
         "id" to mod.id,
         "name" to mod.name,
-        "version" to version.toString(),
+        "version" to mod.version,
         "mcdep" to mcDep
     )
 
@@ -150,7 +152,7 @@ tasks {
 publishMods {
     file = tasks.remapJar.get().archiveFile
     displayName = "${mod.name} ${mod.version} for $mcVersion"
-    version = mod.version
+    version = "${mod.version}+$mcVersion"
     changelog = rootProject.file("CHANGELOG.md").readText()
     type = STABLE
     modLoaders.add("fabric")
