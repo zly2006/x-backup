@@ -29,6 +29,9 @@
   "command.xb.status": "X Backup status: %s",
   "command.xb.uploading_backup": "Uploading backup %s...",
   "command.xb.version": "X Backup %s https://github.com/zly2006/x-backup",
+  "message.xb.prune_finished": "Prune finished, %s backups pruned",
+  "message.xb.pruning_backup": "Pruning backup %s",
+  "message.xb.running_prune": "Running prune...",
   "message.xb.running_scheduled_backup": "Running scheduled backup, please wait...",
   "message.xb.scheduled_backup": "Scheduled backup",
   "message.xb.scheduled_backup_finished": "Scheduled backup %s finished, %s (%s after compression) +%s in %s ms"

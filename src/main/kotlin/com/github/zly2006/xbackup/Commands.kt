@@ -475,13 +475,17 @@ object Commands {
     ) {
         val backup = getBackup(id)
         // Note: on server thread
+        if (recheck && !XBackup.service.check(backup)) {
+            it.source.sendError(Utils.translate("command.xb.backup_corrupted", backupIdText(id)))
+            return
+        }
         XBackup.reason = "Auto-backup before restoring to #$id"
         XBackup.disableWatchdog = true
         it.source.server.save()
         it.source.server.setAutoSaving(false)
         XBackup.disableSaving = true
         runBlocking {
-            XBackup.service.createBackup(path.normalize(), "Auto-backup before restoring to #$id") { true }
+            XBackup.service.createBackup(path.normalize(), "Auto-backup before restoring to #$id", true) { true }
         }
         it.source.server.setAutoSaving(true)
         XBackup.disableSaving = false
@@ -490,10 +494,6 @@ object Commands {
         XBackup.ensureNotBusy(
             Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
         ) {
-            if (recheck && !XBackup.service.check(backup)) {
-                it.source.sendError(Utils.translate("command.xb.backup_corrupted", backupIdText(id)))
-                return@ensureNotBusy
-            }
             XBackup.restoring = true
             XBackup.serverStopHook = {
                 try {

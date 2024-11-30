@@ -22,6 +22,7 @@ import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteConnection
 import org.sqlite.SQLiteDataSource
 import java.io.File
+import java.nio.file.Files
 import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.*
 
@@ -145,6 +146,25 @@ object XBackup : ModInitializer {
                     if (config.backupInterval == 0) continue
                     val backup = service.getLatestBackup()
                     if (isBusy) continue
+                    if (config.pruneConfig.enabled) {
+                        val idToTime = service.listBackups(0, Int.MAX_VALUE).associate { it.id.toString() to it.created }
+                        val toPrune = config.pruneConfig.prune(idToTime)
+                        if (toPrune.isNotEmpty()) {
+                            try {
+                                isBusy = true
+                                server.broadcast(Utils.translate("message.xb.running_prune"))
+                                toPrune.forEach {
+                                    server.broadcast(Utils.translate("message.xb.pruning_backup", it))
+                                    service.deleteBackup(it.toInt())
+                                }
+                                server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))
+                            } catch (e: Exception) {
+                                log.error("Crontab prune failed", e)
+                            } finally {
+                                isBusy = false
+                            }
+                        }
+                    }
                     if (backup == null || (System.currentTimeMillis() - backup.created) / 1000 > config.backupInterval) {
                         try {
                             isBusy = true
@@ -161,6 +181,7 @@ object XBackup : ModInitializer {
                             } catch (e: Exception) {
                                 log.error("Error backing up database", e)
                             }
+                            Files.move(localBackup.toPath(), Path("xb.backups").resolve(backId.toString()).resolve("x_backup.db"))
                             server.broadcast(
                                 Utils.translate(
                                     "message.xb.scheduled_backup_finished",

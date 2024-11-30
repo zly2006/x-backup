@@ -74,6 +74,7 @@ class BackupDatabaseService(
         val zippedSize = long("zipped_size")
         val created = long("created")
         val comment = varchar("comment", 255)
+        val temporary = bool("temporary").default(false)
     }
 
     object BackupEntryBackupTable : IntIdTable("backup_entry_backup") {
@@ -111,6 +112,7 @@ class BackupDatabaseService(
         val created: Long,
         val comment: String,
         val entries: List<BackupEntry>,
+        val temporary: Boolean
     )
 
     data class XBackupStatus(
@@ -128,7 +130,12 @@ class BackupDatabaseService(
         XBackupStatus(blobDiskUsage, actualUsage, backupCount, latestBackup)
     }
 
-    suspend fun createBackup(root: Path, comment: String, predicate: (Path) -> Boolean): BackupResult {
+    suspend fun createBackup(
+        root: Path,
+        comment: String,
+        temporary: Boolean = false,
+        predicate: (Path) -> Boolean,
+    ): BackupResult {
         if (blobDir.absolute().normalize().startsWith(root.absolute().normalize())) {
             error("Blob directory cannot be inside the backup directory")
         }
@@ -276,6 +283,7 @@ class BackupDatabaseService(
                 it[zippedSize] = entries.sumOf { it.zippedSize }
                 it[created] = System.currentTimeMillis()
                 it[this.comment] = comment
+                it[this.temporary] = temporary
             }.resultedValues!!.single().toBackup()
             entries.forEach { entry ->
                 BackupEntryBackupTable.insert {
@@ -504,7 +512,8 @@ class BackupDatabaseService(
                 this[BackupTable.comment],
                 BackupEntryTable.selectAll().where {
                     BackupEntryTable.id inSubQuery entries
-                }.map { it.toBackupEntry() }
+                }.map { it.toBackupEntry() },
+                this[BackupTable.temporary],
             )
         }
 

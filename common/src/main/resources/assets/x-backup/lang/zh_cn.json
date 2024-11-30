@@ -29,6 +29,9 @@
   "command.xb.status": "X Backup 状态: %s",
   "command.xb.uploading_backup": "正在上传备份 %s...",
   "command.xb.version": "X Backup %s https://github.com/zly2006/x-backup",
+  "message.xb.prune_finished": "修剪完成，已修剪 %s 个备份",
+  "message.xb.pruning_backup": "正在修剪备份 %s",
+  "message.xb.running_prune": "正在修剪...",
   "message.xb.running_scheduled_backup": "正在运行计划备份，请稍候...",
   "message.xb.scheduled_backup": "计划备份",
   "message.xb.scheduled_backup_finished": "计划备份 %s 完成, %s (压缩后 %s) +%s 用时 %s 毫秒"
