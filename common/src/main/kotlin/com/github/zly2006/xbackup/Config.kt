@@ -8,7 +8,7 @@ class Config {
     @Serializable
     class PruneConfig {
         @SerialName("enabled")
-        var enabled = true
+        var enabled = false
 
         @SerialName("keep_policy")
         val keepPolicy = mapOf(
@@ -19,14 +19,14 @@ class Config {
             "2y" to "1M"
         )
 
-        fun prune(idToTime: Map<String, Long>): List<String> {
+        fun prune(idToTime: Map<String, Long>, now: Long = System.currentTimeMillis()): List<String> {
             if (!enabled) return emptyList()
             var latest = Long.MAX_VALUE
             val ret = mutableListOf<String>()
             val policies = keepPolicy.map { (k, v) -> k.toMillis() to v.toMillis() }.sortedBy { it.first }
             idToTime.forEach { (id, time) ->
                 val diff = latest - time
-                val policy = policies.lastOrNull { it.first <= System.currentTimeMillis() - time }
+                val policy = policies.lastOrNull { it.first <= now - time }
                 if (policy != null) {
                     if (diff < policy.second) {
                         ret.add(id)
