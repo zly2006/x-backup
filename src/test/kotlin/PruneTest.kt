@@ -1,3 +1,4 @@
+
 import com.github.zly2006.xbackup.Config
 import kotlinx.serialization.json.Json
 import org.junit.Test
@@ -8,8 +9,16 @@ class PruneTest {
 
     @Test
     fun test() {
-        assertEquals(279, Config.PruneConfig().apply {
+        assertEquals(431, Config.PruneConfig().apply {
             enabled = true
         }.prune(data, 1733025063000).size)
+        val prune = Config.PruneConfig().apply {
+            enabled = true
+        }.prune(data, 1733025063000)
+        data.toMutableMap().also {
+            prune.forEach { id -> it.remove(id) }
+        }.let {
+            println(it)
+        }
     }
 }

@@ -30,6 +30,7 @@ object XBackup : ModInitializer {
     lateinit var config: Config
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
+    val MOD_VERSION = /*$ mod_version */ ""
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
     @get:JvmName("isServerStarted")
