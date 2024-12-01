@@ -19,6 +19,13 @@ class Config {
             "2y" to "1M"
         )
 
+        @SerialName("keep_temporary")
+        val keepTemporary = "2d"
+
+        fun temporaryKeepPolicy(): Long {
+            return keepTemporary.toMillis()
+        }
+
         fun prune(idToTime: Map<String, Long>, now: Long): List<String> {
             if (!enabled) return emptyList()
             var oldest = 0L

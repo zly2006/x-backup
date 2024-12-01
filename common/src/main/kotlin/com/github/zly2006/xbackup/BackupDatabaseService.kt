@@ -330,13 +330,12 @@ class BackupDatabaseService(
         throw RuntimeException("Retry failed", lastException)
     }
 
-    suspend fun deleteBackup(id: Int) {
+    suspend fun deleteBackup(backup: Backup) {
         dbQuery {
-            val backup = getBackup(id) ?: error("Backup not found")
             backup.entries.forEach { entry ->
                 if (BackupEntryBackupTable.selectAll().where {
                         BackupEntryBackupTable.entry eq entry.id and
-                                (BackupEntryBackupTable.backup neq id)
+                                (BackupEntryBackupTable.backup neq backup.id)
                     }.empty()
                 ) {
                     getBlobFile(entry.hash).toFile().delete()
@@ -345,7 +344,7 @@ class BackupDatabaseService(
                     }
                 }
             }
-            BackupTable.deleteWhere { BackupTable.id eq id }
+            BackupTable.deleteWhere { BackupTable.id eq backup.id }
         }
     }
 

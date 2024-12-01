@@ -293,7 +293,7 @@ object Commands {
                     argument("id", IntegerArgumentType.integer(1)).executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         XBackup.ensureNotBusy {
-                            XBackup.service.deleteBackup(getBackup(id).id)
+                            XBackup.service.deleteBackup(getBackup(id))
                             it.source.send(Utils.translate("command.xb.backup_deleted", backupIdText(id)))
                         }
                         1

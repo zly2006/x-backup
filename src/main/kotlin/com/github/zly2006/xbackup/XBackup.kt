@@ -157,7 +157,7 @@ object XBackup : ModInitializer {
                                 server.broadcast(Utils.translate("message.xb.running_prune"))
                                 toPrune.forEach {
                                     server.broadcast(Utils.translate("message.xb.pruning_backup", it))
-                                    service.deleteBackup(it.toInt())
+                                    service.deleteBackup(service.getBackup(it.toInt())!!)
                                 }
                                 server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))
                             } catch (e: Exception) {
@@ -165,6 +165,11 @@ object XBackup : ModInitializer {
                             } finally {
                                 isBusy = false
                             }
+                        }
+                        service.listBackups(0, Int.MAX_VALUE).filter {
+                            it.temporary && it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
+                        }.forEach {
+                            service.deleteBackup(it)
                         }
                     }
                     if (backup == null || (System.currentTimeMillis() - backup.created) / 1000 > config.backupInterval) {
