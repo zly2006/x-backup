@@ -19,19 +19,19 @@ class Config {
             "2y" to "1M"
         )
 
-        fun prune(idToTime: Map<String, Long>, now: Long = System.currentTimeMillis()): List<String> {
+        fun prune(idToTime: Map<String, Long>, now: Long): List<String> {
             if (!enabled) return emptyList()
-            var latest = Long.MAX_VALUE
+            var oldest = 0L
             val ret = mutableListOf<String>()
             val policies = keepPolicy.map { (k, v) -> k.toMillis() to v.toMillis() }.sortedBy { it.first }
-            idToTime.forEach { (id, time) ->
-                val diff = latest - time
+            idToTime.toList().sortedBy { (_, time) -> time }.forEach { (id, time) ->
+                val diff = time - oldest
                 val policy = policies.lastOrNull { it.first <= now - time }
                 if (policy != null) {
                     if (diff < policy.second) {
                         ret.add(id)
                     } else {
-                        latest = time
+                        oldest = time
                     }
                 }
             }
