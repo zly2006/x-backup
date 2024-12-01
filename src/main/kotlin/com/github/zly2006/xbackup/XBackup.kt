@@ -49,7 +49,11 @@ object XBackup : ModInitializer {
     var disableSaving = false
     var disableWatchdog = false
 
-    private var crontabJob: Job? = null
+    enum class BackgroundState {
+        IDLE, UNKNOWN, SCHEDULED_BACKUP, PRUNING
+    }
+    var backgroundState = BackgroundState.IDLE
+    var crontabJob: Job? = null
 
     fun loadConfig() {
         try {
@@ -140,38 +144,52 @@ object XBackup : ModInitializer {
                 }
             )
             service = BackupDatabaseService(database, Path(".").absolute().resolve(config.blobPath).normalize(), config)
-            crontabJob = GlobalScope.launch {
-                while (true) {
-                    delay(10000)
-                    if (config.backupInterval == 0) continue
-                    val backup = service.getLatestBackup()
-                    if (isBusy) continue
-                    if (config.pruneConfig.enabled) {
-                        val idToTime = service.listBackups(0, Int.MAX_VALUE)
-                            .filter { !it.temporary }
-                            .associate { it.id.toString() to it.created }
-                        val toPrune = config.pruneConfig.prune(idToTime, System.currentTimeMillis())
-                        if (toPrune.isNotEmpty()) {
-                            try {
-                                isBusy = true
-                                server.broadcast(Utils.translate("message.xb.running_prune"))
-                                toPrune.forEach {
-                                    server.broadcast(Utils.translate("message.xb.pruning_backup", it))
-                                    service.deleteBackup(service.getBackup(it.toInt())!!)
-                                }
-                                server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))
-                            } catch (e: Exception) {
-                                log.error("Crontab prune failed", e)
-                            } finally {
-                                isBusy = false
+            startCrontabJob(server)
+        }
+        ServerLifecycleEvents.SERVER_STOPPING.register {
+            runBlocking {
+                crontabJob?.cancelAndJoin()
+            }
+        }
+    }
+
+    private fun startCrontabJob(server: MinecraftServer) {
+        crontabJob = GlobalScope.launch {
+            while (true) {
+                backgroundState = BackgroundState.IDLE
+                delay(10000)
+                if (config.backupInterval == 0) continue
+                val backup = service.getLatestBackup()
+                if (isBusy) continue
+                if (config.pruneConfig.enabled) {
+                    backgroundState = BackgroundState.PRUNING
+                    val idToTime = service.listBackups(0, Int.MAX_VALUE)
+                        .filter { !it.temporary }
+                        .associate { it.id.toString() to it.created }
+                    val toPrune = config.pruneConfig.prune(idToTime, System.currentTimeMillis())
+                    if (toPrune.isNotEmpty()) {
+                        try {
+                            isBusy = true
+                            server.broadcast(Utils.translate("message.xb.running_prune"))
+                            toPrune.forEach {
+                                server.broadcast(Utils.translate("message.xb.pruning_backup", it))
+                                service.deleteBackup(service.getBackup(it.toInt())!!)
                             }
-                        }
-                        service.listBackups(0, Int.MAX_VALUE).filter {
-                            it.temporary && it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
-                        }.forEach {
-                            service.deleteBackup(it)
+                            server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))
+                        } catch (e: Exception) {
+                            log.error("Crontab prune failed", e)
+                        } finally {
+                            isBusy = false
                         }
                     }
+                    service.listBackups(0, Int.MAX_VALUE).filter {
+                        it.temporary && it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
+                    }.forEach {
+                        service.deleteBackup(it)
+                    }
+                }
+                if (config.backupInterval > 0) {
+                    backgroundState = BackgroundState.SCHEDULED_BACKUP
                     if (backup == null || (System.currentTimeMillis() - backup.created) / 1000 > config.backupInterval) {
                         try {
                             isBusy = true
@@ -198,7 +216,11 @@ object XBackup : ModInitializer {
                             server.broadcast(
                                 Utils.translate(
                                     "message.xb.scheduled_backup_finished",
-                                    backupIdText(backId), sizeText(totalSize), sizeText(compressedSize), sizeText(addedSize), millis
+                                    backupIdText(backId),
+                                    sizeText(totalSize),
+                                    sizeText(compressedSize),
+                                    sizeText(addedSize),
+                                    millis
                                 )
                             )
                         } catch (e: Exception) {
@@ -208,11 +230,6 @@ object XBackup : ModInitializer {
                         }
                     }
                 }
-            }
-        }
-        ServerLifecycleEvents.SERVER_STOPPING.register {
-            runBlocking {
-                crontabJob?.cancelAndJoin()
             }
         }
     }

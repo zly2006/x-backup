@@ -13,6 +13,7 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.context.CommandContext
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -452,6 +453,13 @@ object Commands {
                             }
                             1
                         }
+                    }
+                    literal("crontab-stop").executes {
+                        runBlocking {
+                            XBackup.crontabJob?.cancelAndJoin()
+                        }
+                        it.source.send(Text.literal("Stopped crontab job"))
+                        1
                     }
                 }
                 literal("backup-interval") {
