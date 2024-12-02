@@ -80,6 +80,9 @@ class Config {
     @SerialName("backup_interval")
     var backupInterval = 10800
 
+    @SerialName("backup_before_restore")
+    var backupBeforeRestore = true
+
     @SerialName("mirror_mode")
     var mirrorMode: Boolean = false
 

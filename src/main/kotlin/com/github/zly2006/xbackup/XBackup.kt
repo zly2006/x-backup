@@ -55,7 +55,7 @@ object XBackup : ModInitializer {
     enum class BackgroundState {
         IDLE, UNKNOWN, SCHEDULED_BACKUP, PRUNING
     }
-    var backgroundState = BackgroundState.IDLE
+    var backgroundState = BackgroundState.UNKNOWN
     var crontabJob: Job? = null
 
     fun loadConfig() {

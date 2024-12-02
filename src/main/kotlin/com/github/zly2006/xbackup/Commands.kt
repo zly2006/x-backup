@@ -112,7 +112,10 @@ object Commands {
                 literal("status") {
                     executes {
                         it.source.send(Utils.translate("command.xb.status", if (XBackup.isBusy) "Busy" else "OK"))
-                        it.source.send(Utils.translate("command.xb.background_task_status", XBackup.backgroundState))
+                        if (XBackup.config.mirrorMode) {
+                            it.source.send(Text.literal("X Backup is in mirror mode").formatted(Formatting.GOLD))
+                        }
+                        it.source.send(Utils.translate("command.xb.background_task_status", XBackup.backgroundState.toString()))
                         GlobalScope.launch(it.source.server.asCoroutineDispatcher()) {
                             val status = XBackup.service.status()
                             it.source.send(
@@ -238,18 +241,31 @@ object Commands {
     private fun registerMirrorMode(dispatcher: CommandDispatcher<ServerCommandSource>) {
         dispatcher.register {
             literal("mirror") {
-                argument("id", IntegerArgumentType.integer(1)) {
+                optional(argument("id", IntegerArgumentType.integer(1))) {
+                    executes {
+                        val id = try {
+                            IntegerArgumentType.getInteger(it, "id")
+                        } catch (_: IllegalArgumentException) {
+                            runBlocking {
+                                XBackup.service.getLatestBackup()?.id ?: error("No backups found")
+                            }
+                        }
+                        val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                        doRestore(id, it, path)
+                        1
+                    }
                     literal("--stop").executes {
-                        val id = IntegerArgumentType.getInteger(it, "id")
+                        val id = try {
+                            IntegerArgumentType.getInteger(it, "id")
+                        } catch (_: IllegalArgumentException) {
+                            runBlocking {
+                                XBackup.service.getLatestBackup()?.id ?: error("No backups found")
+                            }
+                        }
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
                         doRestore(id, it, path, forceStop = true)
                         1
                     }
-                }.executes {
-                    val id = IntegerArgumentType.getInteger(it, "id")
-                    val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                    doRestore(id, it, path)
-                    1
                 }
             }
         }
@@ -510,16 +526,18 @@ object Commands {
             it.source.sendError(Utils.translate("command.xb.backup_corrupted", backupIdText(id)))
             return
         }
-        XBackup.reason = "Auto-backup before restoring to #$id"
-        XBackup.disableWatchdog = true
-        it.source.server.save()
-        it.source.server.setAutoSaving(false)
-        XBackup.disableSaving = true
-        runBlocking {
-            XBackup.service.createBackup(path.normalize(), "Auto-backup before restoring to #$id", true) { true }
+        if (XBackup.config.backupBeforeRestore && !XBackup.config.mirrorMode) {
+            XBackup.reason = "Auto-backup before restoring to #$id"
+            XBackup.disableWatchdog = true
+            it.source.server.save()
+            it.source.server.setAutoSaving(false)
+            XBackup.disableSaving = true
+            runBlocking {
+                XBackup.service.createBackup(path.normalize(), "Auto-backup before restoring to #$id", true) { true }
+            }
+            it.source.server.setAutoSaving(true)
+            XBackup.disableSaving = false
         }
-        it.source.server.setAutoSaving(true)
-        XBackup.disableSaving = false
 
         // Note: switch to IO thread context
         XBackup.ensureNotBusy(
