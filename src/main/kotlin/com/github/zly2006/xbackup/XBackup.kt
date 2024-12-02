@@ -224,7 +224,9 @@ object XBackup : ModInitializer {
     }
 
     suspend fun prune(server: MinecraftServer) {
-        val backups = service.listBackups(0, Int.MAX_VALUE)
+        val backups = service.listBackups(0, Int.MAX_VALUE).filter {
+            it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
+        }
         val latest = service.getLatestBackup()
 
         val idToTime = backups.filter { !it.temporary }.associate { it.id.toString() to it.created }
@@ -251,9 +253,7 @@ object XBackup : ModInitializer {
             }
         }
 
-        backups.filter {
-            it.temporary && it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
-        }.forEach {
+        backups.filter { it.temporary }.forEach {
             service.deleteBackup(it)
         }
     }
