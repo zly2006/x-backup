@@ -32,7 +32,7 @@ class Config {
             val policies = keepPolicy.map { (k, v) -> k.toMillis() to v.toMillis() }.sortedBy { it.first }
             idToTime.toList().sortedBy { (_, time) -> time }.forEach { (id, time) ->
                 val diff = time - oldest
-                val policy = policies.firstOrNull { it.first > now - time }
+                val policy = policies.firstOrNull { it.first > now - time } ?: policies.lastOrNull()
                 if (policy != null) {
                     if (diff < policy.second) {
                         ret.add(id)

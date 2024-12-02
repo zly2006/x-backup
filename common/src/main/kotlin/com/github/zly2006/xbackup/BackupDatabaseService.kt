@@ -32,6 +32,7 @@ class BackupDatabaseService(
     private val config: Config
 ) : CoroutineScope {
     val log = LoggerFactory.getLogger("XBackup")!!
+    val syncExecutor = newFixedThreadPoolContext(1, "XBackup-Sync")
 
     val oneDriveService: IOnedriveUtils by lazy {
         ServiceLoader.load(IOnedriveUtils::class.java)
@@ -243,18 +244,20 @@ class BackupDatabaseService(
                                 error("File hash mismatch when creating backup, file: $path, expected: ${md5}")
                             }
                         }
-                        dbQuery {
-                            val backupEntry = BackupEntryTable.insert {
-                                it[this.path] = path.toString()
-                                it[this.size] = sourceFile.length()
-                                it[this.lastModified] = sourceFile.lastModified()
-                                it[this.isDirectory] = sourceFile.isDirectory
-                                it[this.hash] = md5
-                                it[this.zippedSize] = zippedSize
-                                it[this.gzip] = gzip
-                            }.resultedValues!!.single().toBackupEntry()
-                            newEntries.add(backupEntry)
-                            backupEntry
+                        withContext(syncExecutor) {
+                            dbQuery {
+                                val backupEntry = BackupEntryTable.insert {
+                                    it[this.path] = path.toString()
+                                    it[this.size] = sourceFile.length()
+                                    it[this.lastModified] = sourceFile.lastModified()
+                                    it[this.isDirectory] = sourceFile.isDirectory
+                                    it[this.hash] = md5
+                                    it[this.zippedSize] = zippedSize
+                                    it[this.gzip] = gzip
+                                }.resultedValues!!.single().toBackupEntry()
+                                newEntries.add(backupEntry)
+                                backupEntry
+                            }
                         }
                     } catch (e: IOException) {
                         throw IOException("Error backing up file: $sourceFile", e)
