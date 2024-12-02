@@ -76,12 +76,13 @@ X Backup 是一个 Minecraft 服务器模组，可以帮助你管理游戏的备
 /xb create
 ```
 
-然后，在镜像服配置中，设置主服的文件路径，并打开镜像模式：
+然后，在镜像服配置中，设置主服的文件路径（里面有server.properties的那个）和`blob_path`，并打开镜像模式：
 
 ```json
 {
   "mirror_mode": true,   
-  "mirror_from": "C:\\MinecraftServer\\My-Server"
+  "mirror_from": "C:\\MinecraftServer\\My-Server",
+  "blob_path": "C:\\MinecraftServer\\My-Server\\blob"
 }
 ```
 
@@ -104,6 +105,7 @@ X Backup 是一个 Minecraft 服务器模组，可以帮助你管理游戏的备
 ```json
 {
   "prune": {
+    "enabled": false,
     "keep_policy": {
       "1d": "30m",
       "1w": "6h",
@@ -123,3 +125,16 @@ X Backup 是一个 Minecraft 服务器模组，可以帮助你管理游戏的备
 - 保留最近2年内每月的备份
 
 你可以根据自己的需求调整这些设置。
+
+当`enabled`为`true`时，模组会自动清理不符合保留策略的备份。或者你也可以手动清理不需要的备份，使用`/xb prune`命令。
+
+### 查看备份信息
+
+如果你想查看某个备份的详细信息，可以使用`/xb info <id>`命令，例如：
+
+```
+/xb info 1
+```
+
+这个命令会显示备份#1的详细信息，包括备份时间、备注、占用大小等。
+
