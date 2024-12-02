@@ -12,9 +12,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.context.CommandContext
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
@@ -482,6 +480,14 @@ object Commands {
                     }
                     executes {
                         it.source.send(Utils.translate("command.xb.current_backup_interval", XBackup.config.backupInterval))
+                        1
+                    }
+                }
+                literal("prune") {
+                    executes {
+                        GlobalScope.launch(it.source.server.asCoroutineDispatcher()) {
+                            XBackup.prune(it.source.server)
+                        }
                         1
                     }
                 }

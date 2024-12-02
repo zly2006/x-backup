@@ -166,30 +166,7 @@ object XBackup : ModInitializer {
                 if (isBusy) continue
                 if (config.pruneConfig.enabled) {
                     backgroundState = BackgroundState.PRUNING
-                    val idToTime = service.listBackups(0, Int.MAX_VALUE)
-                        .filter { !it.temporary }
-                        .associate { it.id.toString() to it.created }
-                    val toPrune = config.pruneConfig.prune(idToTime, System.currentTimeMillis())
-                    if (toPrune.isNotEmpty()) {
-                        try {
-                            isBusy = true
-                            server.broadcast(Utils.translate("message.xb.running_prune"))
-                            toPrune.forEach {
-                                server.broadcast(Utils.translate("message.xb.pruning_backup", it))
-                                service.deleteBackup(service.getBackup(it.toInt())!!)
-                            }
-                            server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))
-                        } catch (e: Exception) {
-                            log.error("Crontab prune failed", e)
-                        } finally {
-                            isBusy = false
-                        }
-                    }
-                    service.listBackups(0, Int.MAX_VALUE).filter {
-                        it.temporary && it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
-                    }.forEach {
-                        service.deleteBackup(it)
-                    }
+                    prune(server)
                 }
                 if (config.backupInterval > 0) {
                     backgroundState = BackgroundState.SCHEDULED_BACKUP
@@ -239,6 +216,33 @@ object XBackup : ModInitializer {
                     }
                 }
             }
+        }
+    }
+
+    suspend fun prune(server: MinecraftServer) {
+        val idToTime = service.listBackups(0, Int.MAX_VALUE)
+            .filter { !it.temporary }
+            .associate { it.id.toString() to it.created }
+        val toPrune = config.pruneConfig.prune(idToTime, System.currentTimeMillis())
+        if (toPrune.isNotEmpty()) {
+            try {
+                isBusy = true
+                server.broadcast(Utils.translate("message.xb.running_prune"))
+                toPrune.forEach {
+                    server.broadcast(Utils.translate("message.xb.pruning_backup", it))
+                    service.deleteBackup(service.getBackup(it.toInt())!!)
+                }
+                server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))
+            } catch (e: Exception) {
+                log.error("Crontab prune failed", e)
+            } finally {
+                isBusy = false
+            }
+        }
+        service.listBackups(0, Int.MAX_VALUE).filter {
+            it.temporary && it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
+        }.forEach {
+            service.deleteBackup(it)
         }
     }
 
