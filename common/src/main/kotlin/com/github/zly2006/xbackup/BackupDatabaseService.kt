@@ -29,10 +29,18 @@ import kotlin.io.path.*
 class BackupDatabaseService(
     val database: Database,
     private val blobDir: Path,
-    private val config: Config
+    config: Config
 ) : CoroutineScope {
-    val log = LoggerFactory.getLogger("XBackup")!!
-    val syncExecutor = newFixedThreadPoolContext(1, "XBackup-Sync")
+    private val log = LoggerFactory.getLogger("XBackup")!!
+    private val syncExecutor = newFixedThreadPoolContext(1, "XBackup-Sync")
+    init {
+        require(blobDir.isAbsolute) {
+            "Blob directory must be absolute"
+        }
+        if (!blobDir.isDirectory()) {
+            log.warn("Blob directory not found, creating...")
+        }
+    }
 
     val oneDriveService: IOnedriveUtils by lazy {
         ServiceLoader.load(IOnedriveUtils::class.java)

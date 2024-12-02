@@ -8,6 +8,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.put
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
@@ -146,7 +147,23 @@ object XBackup : ModInitializer {
                     url = "jdbc:sqlite:$worldPath/x_backup.db"
                 }
             )
-            service = BackupDatabaseService(database, Path(".").absolute().resolve(config.blobPath).normalize(), config)
+            if (config.mirrorMode) {
+                val sourceConfig = kotlin.runCatching {
+                    Json.decodeFromStream<Config>(Path(config.mirrorFrom!!, "config", "x-backup.config.json").inputStream())
+                }.getOrNull()
+                if (sourceConfig == null) {
+                    log.error("Failed to load config from source server!")
+                }
+                val config = sourceConfig ?: config
+                service = BackupDatabaseService(
+                    database,
+                    Path(config.mirrorFrom!!).resolve(config.blobPath).absolute().normalize(),
+                    config
+                )
+            }
+            else {
+                service = BackupDatabaseService(database, Path(".").absolute().resolve(config.blobPath).normalize(), config)
+            }
             if (!config.mirrorMode) {
                 startCrontabJob(server)
             }
