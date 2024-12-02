@@ -17,7 +17,9 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToStream
+import kotlinx.serialization.json.put
 import net.minecraft.command.argument.ColumnPosArgumentType
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.ClickEvent
@@ -274,8 +276,15 @@ object Commands {
                                 it.source.server.save()
                                 it.source.server.setAutoSaving(false)
                                 XBackup.disableSaving = true
-                                val result =
-                                    XBackup.service.createBackup(path, "$comment by ${it.source.name}") { true }
+                                val result = XBackup.service.createBackup(
+                                    path,
+                                    "$comment by ${it.source.name}",
+                                    temporary = false,
+                                    buildJsonObject {
+                                        put("mod_ver", XBackup.MOD_VERSION)
+                                        put("source", it.source.name)
+                                    }
+                                ) { true }
                                 it.source.server.broadcast(
                                     Utils.translate(
                                         "command.xb.backup_finished",

@@ -7,6 +7,8 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -30,7 +32,7 @@ object XBackup : ModInitializer {
     lateinit var config: Config
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
-    val MOD_VERSION = /*$ mod_version */ ""
+    val MOD_VERSION = /*$ mod_version */ "dev"
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
     @get:JvmName("isServerStarted")
@@ -198,6 +200,11 @@ object XBackup : ModInitializer {
                             val (_, _, backId, totalSize, compressedSize, addedSize, millis) = service.createBackup(
                                 server.getSavePath(WorldSavePath.ROOT).toAbsolutePath(),
                                 I18n.langMap["message.xb.scheduled_backup"] ?: "Scheduled backup",
+                                metadata = buildJsonObject {
+                                    put("scheduled", true)
+                                    put("interval", config.backupInterval)
+                                    put("mod_ver", MOD_VERSION)
+                                }
                             ) { true }
                             val localBackup = File("x_backup.db.back")
                             localBackup.delete()

@@ -5,9 +5,11 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.json.json
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
@@ -75,6 +77,7 @@ class BackupDatabaseService(
         val created = long("created")
         val comment = varchar("comment", 255)
         val temporary = bool("temporary").default(false)
+        val metadata = json<JsonObject>("metadata", Json).nullable()
     }
 
     object BackupEntryBackupTable : IntIdTable("backup_entry_backup") {
@@ -137,6 +140,7 @@ class BackupDatabaseService(
         root: Path,
         comment: String,
         temporary: Boolean = false,
+        metadata: JsonObject? = null,
         predicate: (Path) -> Boolean,
     ): BackupResult {
         if (blobDir.absolute().normalize().startsWith(root.absolute().normalize())) {
@@ -232,51 +236,32 @@ class BackupDatabaseService(
                         else {
                             zippedSize = 0
                         }
-
-                        val backupEntry = BackupEntry(
-                            id = -1,
-                            path = path.toString(),
-                            size = sourceFile.length(),
-                            lastModified = sourceFile.lastModified(),
-                            isDirectory = sourceFile.isDirectory,
-                            hash = md5,
-                            zippedSize = zippedSize,
-                            gzip = gzip,
-                            cloudDriveId = null,
-                        )
                         if (sourceFile.isFile) {
                             if (MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
-                                    .joinToString("") { "%02x".format(it) } != backupEntry.hash
+                                    .joinToString("") { "%02x".format(it) } != md5
                             ) {
-                                error("File hash mismatch when creating backup, file: $path, expected: ${backupEntry.hash}")
+                                error("File hash mismatch when creating backup, file: $path, expected: ${md5}")
                             }
                         }
-                        newEntries.add(backupEntry)
-                        backupEntry
+                        dbQuery {
+                            val backupEntry = BackupEntryTable.insert {
+                                it[this.path] = path.toString()
+                                it[this.size] = sourceFile.length()
+                                it[this.lastModified] = sourceFile.lastModified()
+                                it[this.isDirectory] = sourceFile.isDirectory
+                                it[this.hash] = md5
+                                it[this.zippedSize] = zippedSize
+                                it[this.gzip] = gzip
+                            }.resultedValues!!.single().toBackupEntry()
+                            newEntries.add(backupEntry)
+                            backupEntry
+                        }
                     } catch (e: IOException) {
                         throw IOException("Error backing up file: $sourceFile", e)
                     }
                 }
             }
-        }.toList().awaitAll().map { entry ->
-            if (entry.id == -1) {
-                // not yet in database
-                dbQuery {
-                    val id = BackupEntryTable.insertAndGetId {
-                        it[path] = entry.path
-                        it[size] = entry.size
-                        it[zippedSize] = entry.zippedSize
-                        it[lastModified] = entry.lastModified
-                        it[isDirectory] = entry.isDirectory
-                        it[hash] = entry.hash
-                        it[gzip] = entry.gzip
-                        it[cloudDriveId] = entry.cloudDriveId ?: 0
-                    }
-                    entry.copy(id = id.value)
-                }
-            }
-            else entry
-        }
+        }.toList().awaitAll()
         require(files.size == entries.size)
         Path("debug-backup.json").writeText(Json.encodeToString(files.toList()))
         log.info("[X Backup] Backed up ${entries.size} files, ${newEntries.size} new, ${entries.size - newEntries.size} files reused")
@@ -287,6 +272,7 @@ class BackupDatabaseService(
                 it[created] = System.currentTimeMillis()
                 it[this.comment] = comment
                 it[this.temporary] = temporary
+                it[this.metadata] = metadata
             }.resultedValues!!.single().toBackup()
             entries.forEach { entry ->
                 BackupEntryBackupTable.insert {
