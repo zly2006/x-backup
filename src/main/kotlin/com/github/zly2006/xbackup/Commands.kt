@@ -564,6 +564,10 @@ object Commands {
                 }
             }
             it.source.server.stop(false)
+            it.source.server.networkIo?.connections?.forEach {
+                it.disconnected = true
+                // prevent the game from saving player data again
+            }
             XBackup.log.info("[X Backup] Waiting for server to stop...")
             it.source.server.thread.join()
         }
