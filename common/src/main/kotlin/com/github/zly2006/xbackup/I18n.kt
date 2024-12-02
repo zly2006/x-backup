@@ -17,7 +17,7 @@ object I18n {
      * @return The language code that is actually set.
      * @throws IllegalStateException If the default language file is not found.
      */
-    @ExperimentalSerializationApi
+    @OptIn(ExperimentalSerializationApi::class)
     fun setLanguage(langCode: String): String {
         try {
             val lang = getLanguageFile(langCode).use {

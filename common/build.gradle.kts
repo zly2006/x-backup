@@ -28,6 +28,7 @@ dependencies {
     sharedLib("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     sharedLib("org.jetbrains.exposed:exposed-json:$exposed_version")
     sharedLib("org.xerial:sqlite-jdbc:3.46.0.0")
+    sharedLib("org.apache.commons:commons-compress:1.26.0")
     // kotlin
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")

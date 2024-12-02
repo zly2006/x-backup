@@ -32,6 +32,7 @@ class BackupDatabaseService(
     config: Config
 ) : CoroutineScope {
     private val log = LoggerFactory.getLogger("XBackup")!!
+    @OptIn(DelicateCoroutinesApi::class)
     private val syncExecutor = newFixedThreadPoolContext(1, "XBackup-Sync")
     init {
         require(blobDir.isAbsolute) {
@@ -132,6 +133,16 @@ class BackupDatabaseService(
         val actualUsage: Long,
         val backupCount: Long,
         val latestBackup: Backup?,
+    )
+
+    data class BackupResult(
+        val success: Boolean,
+        val message: String,
+        val backId: Int,
+        val totalSize: Long,
+        val compressedSize: Long,
+        val addedSize: Long,
+        val millis: Long
     )
 
     suspend fun status(): XBackupStatus {
@@ -249,7 +260,7 @@ class BackupDatabaseService(
                             if (MessageDigest.getInstance("MD5").digest(sourceFile.readBytes())
                                     .joinToString("") { "%02x".format(it) } != md5
                             ) {
-                                error("File hash mismatch when creating backup, file: $path, expected: ${md5}")
+                                error("File hash mismatch when creating backup, file: $path, expected: $md5")
                             }
                         }
                         withContext(syncExecutor) {
@@ -439,8 +450,8 @@ class BackupDatabaseService(
                         }
                     }
                 }
-                val done = done.incrementAndGet()
-                if (verbose || done % 30 == 0 && worked) {
+                val doneNow = done.incrementAndGet()
+                if (verbose || doneNow % 30 == 0 && worked) {
                     log.info("[X Backup] Restored $done files // current: ${it.key}")
                 }
             }
@@ -464,7 +475,10 @@ class BackupDatabaseService(
         backup.entries.forEach {
             val blobFile = getBlobFile(it.hash)
             if (it.isDirectory) return@forEach
-            if (!blobFile.exists()) {
+            if (it.cloudDriveId != null) {
+
+            }
+            else if (!blobFile.exists()) {
                 log.error("Blob not found for file ${it.path}, hash: ${it.hash}")
                 valid = false
             }
@@ -474,6 +488,20 @@ class BackupDatabaseService(
             }
         }
         return valid
+    }
+
+    suspend fun packFiles(blobs: List<BackupEntry>) {
+
+    }
+
+    suspend fun packBackup(backup: Backup) {
+        dbQuery {
+            backup.entries.filter { !it.isDirectory }.forEach {
+                dbQuery {
+                    
+                }
+            }
+        }
     }
 
     suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =

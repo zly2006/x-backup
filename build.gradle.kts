@@ -145,6 +145,11 @@ tasks {
         exclude("com/google/gson/**")
         exclude("org/slf4j/**")
         exclude("_COROUTINE/**")
+        exclude("org/apache/commons/**")
+        val sqliteNativeIgnore = listOf("FreeBSD", "Linux-Android")
+        sqliteNativeIgnore.forEach {
+            exclude("org/sqlite/native/$it/**")
+        }
 
         val relocPath = "com.github.zly2006.xbackup."
         relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")

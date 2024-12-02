@@ -33,7 +33,7 @@ object XBackup : ModInitializer {
     lateinit var config: Config
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
-    val MOD_VERSION = /*$ mod_version */ "dev"
+    const val MOD_VERSION = /*$ mod_version */ "dev"
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
     @get:JvmName("isServerStarted")
@@ -86,6 +86,7 @@ object XBackup : ModInitializer {
         }
     }
 
+    @OptIn(ExperimentalSerializationApi::class)
     override fun onInitialize() {
         runCatching {
             loadConfig()
@@ -175,6 +176,7 @@ object XBackup : ModInitializer {
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun startCrontabJob(server: MinecraftServer) {
         require(!config.mirrorMode) {
             "Crontab job should not be started in mirror mode"
