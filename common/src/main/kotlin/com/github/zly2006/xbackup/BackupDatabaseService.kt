@@ -6,6 +6,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import okio.use
+import org.jetbrains.annotations.ApiStatus.ScheduledForRemoval
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -13,15 +17,20 @@ import org.jetbrains.exposed.sql.json.json
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Path
+import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.*
 
@@ -77,7 +86,16 @@ class BackupDatabaseService(
         val lastModified = long("last_modified")
         val isDirectory = bool("is_directory")
         val hash = varchar("hash", 255).index()
+        @Deprecated("compress = 1 is gzip")
+        @ScheduledForRemoval
         val gzip = bool("gzip")
+
+        /**
+         * 0: no compress
+         * 1: gzip
+         * 2: zip (pack multiple files)
+         */
+        val compress = byte("compress").default(0)
         val cloudDriveId = byte("cloud_drive_id").default(0)
     }
 
@@ -104,7 +122,7 @@ class BackupDatabaseService(
         val lastModified: Long,
         val isDirectory: Boolean,
         val hash: String,
-        val gzip: Boolean,
+        val compress: Int,
         val cloudDriveId: Byte?,
     ) {
         override fun toString(): String {
@@ -114,6 +132,31 @@ class BackupDatabaseService(
         fun valid(service: BackupDatabaseService): Boolean {
             return isDirectory ||
                     (service.getBlobFile(hash).exists() && (service.getBlobFile(hash).fileSize() == zippedSize))
+        }
+
+        suspend fun getInputStream(service: BackupDatabaseService): InputStream? {
+            val blob = service.getBlobFile(hash)
+            if (cloudDriveId != null && !blob.exists()) {
+                Class.forName("com.github.zly2006.xbackup.OnedriveUtils")
+                service.oneDriveService.downloadBlob(hash)
+            }
+            if (!blob.exists()) {
+                return null
+            }
+            return when (compress) {
+                0 -> blob.inputStream()
+                1 -> GZIPInputStream(blob.inputStream())
+                2 -> ZipInputStream(blob.inputStream()).use {
+                    @Suppress("ControlFlowWithEmptyBody")
+                    while (it.nextEntry.let { zipEntry ->
+                            if (zipEntry == null) false
+                            else zipEntry.name != path
+                        }) { }
+                    it
+                }
+
+                else -> error("Unknown compress type: $compress")
+            }
         }
     }
 
@@ -125,7 +168,8 @@ class BackupDatabaseService(
         val created: Long,
         val comment: String,
         val entries: List<BackupEntry>,
-        val temporary: Boolean
+        val temporary: Boolean,
+        val metadata: JsonObject?,
     )
 
     data class XBackupStatus(
@@ -272,7 +316,7 @@ class BackupDatabaseService(
                                     it[this.isDirectory] = sourceFile.isDirectory
                                     it[this.hash] = md5
                                     it[this.zippedSize] = zippedSize
-                                    it[this.gzip] = gzip
+                                    it[this.compress] = if (gzip) 1 else 0
                                 }.resultedValues!!.single().toBackupEntry()
                                 newEntries.add(backupEntry)
                                 backupEntry
@@ -357,7 +401,7 @@ class BackupDatabaseService(
     }
 
     fun getBlobFile(hash: String): Path {
-        return blobDir.resolve(hash.take(2)).resolve(hash.drop(2))
+        return blobDir.resolve(hash.take(2)).resolve(hash.drop(2)).createParentDirectories()
     }
 
     suspend fun getBackup(id: Int): Backup? = dbQuery {
@@ -408,22 +452,12 @@ class BackupDatabaseService(
                                 path.createParentDirectories().createFile()
                             }
                             val blob = getBlobFile(it.value.hash)
-                            val blobInput: InputStream
-                            if (!blob.exists()) {
-                                if (it.value.cloudDriveId != null) {
-                                    Class.forName("com.github.zly2006.xbackup.OnedriveUtils")
-                                    blobInput = oneDriveService.downloadBlob(it.value.hash)
-                                }
-                                else {
+                            path.outputStream().buffered().use { output ->
+                                val input = it.value.getInputStream(this@BackupDatabaseService)
+                                if (input == null) {
                                     log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
                                     return@async
                                 }
-                            }
-                            else {
-                                blobInput = blob.toFile().inputStream().buffered()
-                            }
-                            path.outputStream().buffered().use { output ->
-                                val input = if (it.value.gzip) GZIPInputStream(blobInput) else blobInput
                                 // copy
                                 input.use {
                                     it.copyTo(output)
@@ -490,15 +524,58 @@ class BackupDatabaseService(
         return valid
     }
 
-    suspend fun packFiles(blobs: List<BackupEntry>) {
+    private suspend fun packFiles(blobs: List<BackupEntry>): String {
+        val stream = ByteArrayOutputStream()
+        ZipOutputStream(stream).use { zip ->
+            zip.setLevel(9)
+            zip.setComment("X-Backup")
 
+            blobs.forEach {
+                require(it.compress != 2) { "already packed" }
+                val entry = zip.putNextEntry(
+                    ZipEntry(it.path.replace('\\', '/').trim('/')).apply {
+                        creationTime = FileTime.fromMillis(it.lastModified)
+                        lastModifiedTime = FileTime.fromMillis(it.lastModified)
+                        comment = buildJsonObject {
+                            put("hash", it.hash)
+                            put("cloud", it.cloudDriveId)
+                        }.toString()
+                    })
+                val input = requireNotNull(it.getInputStream(this)) {
+                    "Blob not found for file ${it.path}, hash: ${it.hash}"
+                }
+                input.copyTo(zip)
+                input.close()
+            }
+        }
+        val md5 = MessageDigest.getInstance("MD5").digest(stream.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        val file = getBlobFile(md5)
+        if (!file.exists()) {
+            file.createParentDirectories().createFile()
+            withContext(Dispatchers.IO) {
+                stream.writeTo(file.outputStream())
+            }
+        }
+        return md5
     }
 
     suspend fun packBackup(backup: Backup) {
         dbQuery {
-            backup.entries.filter { !it.isDirectory }.forEach {
+            val entryList = backup.entries.filter {
+                !it.isDirectory && it.size < 1024 * 1024 * 50 // 50MB
+            }
+            if (entryList.size < 10) return@dbQuery
+            val packed = packFiles(entryList)
+            val blobSize = getBlobFile(packed).fileSize()
+            entryList.forEach {
                 dbQuery {
-                    
+                    BackupEntryTable.update({ BackupEntryTable.id eq it.id }) {
+                        it[compress] = 2
+                        it[cloudDriveId] = 0
+                        it[hash] = packed
+                        it[zippedSize] = blobSize
+                    }
                 }
             }
         }
@@ -527,10 +604,9 @@ class BackupDatabaseService(
     companion object {
         private fun ResultRow.toBackup(): Backup {
             val id = this[BackupTable.id].value
-            val entries =
-                BackupEntryBackupTable.select(BackupEntryBackupTable.entry).where {
-                    BackupEntryBackupTable.backup eq id
-                }
+            val entries = BackupEntryBackupTable.select(BackupEntryBackupTable.entry).where {
+                BackupEntryBackupTable.backup eq id
+            }
             return Backup(
                 id,
                 this[BackupTable.size],
@@ -541,6 +617,7 @@ class BackupDatabaseService(
                     BackupEntryTable.id inSubQuery entries
                 }.map { it.toBackupEntry() },
                 this[BackupTable.temporary],
+                this[BackupTable.metadata]
             )
         }
 
@@ -552,7 +629,16 @@ class BackupDatabaseService(
             this[BackupEntryTable.lastModified],
             this[BackupEntryTable.isDirectory],
             this[BackupEntryTable.hash],
-            this[BackupEntryTable.gzip],
+            if (this[BackupEntryTable.gzip]) {
+                BackupEntryTable.update({
+                    BackupEntryTable.id eq this@toBackupEntry[BackupEntryTable.id]
+                }) {
+                    it[compress] = 1
+                    it[gzip] = false
+                }
+                1
+            }
+            else this[BackupEntryTable.compress].toInt(),
             this[BackupEntryTable.cloudDriveId].let { if (it == 0.toByte()) null else it },
         )
     }
