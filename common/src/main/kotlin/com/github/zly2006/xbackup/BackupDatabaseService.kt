@@ -316,6 +316,7 @@ class BackupDatabaseService(
                                     it[this.isDirectory] = sourceFile.isDirectory
                                     it[this.hash] = md5
                                     it[this.zippedSize] = zippedSize
+                                    it[this.gzip] = false
                                     it[this.compress] = if (gzip) 1 else 0
                                 }.resultedValues!!.single().toBackupEntry()
                                 newEntries.add(backupEntry)
