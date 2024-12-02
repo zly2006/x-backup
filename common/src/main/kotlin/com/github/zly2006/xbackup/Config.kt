@@ -27,7 +27,6 @@ class Config {
         }
 
         fun prune(idToTime: Map<String, Long>, now: Long): List<String> {
-            if (!enabled) return emptyList()
             var oldest = 0L
             val ret = mutableListOf<String>()
             val policies = keepPolicy.map { (k, v) -> k.toMillis() to v.toMillis() }.sortedBy { it.first }

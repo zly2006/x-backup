@@ -1,4 +1,5 @@
 {
+  "command.xb.background_task_status": "Background task status: %s",
   "command.xb.backup_corrupted": "Backup %s is corrupted",
   "command.xb.backup_deleted": "Backup %s deleted",
   "command.xb.backup_details": "  %s %s (%s) on %s",

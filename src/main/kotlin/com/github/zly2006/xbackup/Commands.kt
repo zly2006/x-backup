@@ -112,21 +112,22 @@ object Commands {
                 literal("status") {
                     executes {
                         it.source.send(Utils.translate("command.xb.status", if (XBackup.isBusy) "Busy" else "OK"))
-                        XBackup.ensureNotBusy {
-                            val latest = XBackup.service.getLatestBackup()
-                            if (latest != null) {
-                                it.source.send(
-                                    Utils.translate("command.xb.latest_backup", backupIdText(latest.id), latest.comment).apply {
-                                        hover(Utils.translate("command.xb.click_view_details"))
-                                        clickRun("/xb info ${latest.id}")
-                                    }
+                        it.source.send(Utils.translate("command.xb.background_task_status", XBackup.backgroundState))
+                        GlobalScope.launch(it.source.server.asCoroutineDispatcher()) {
+                            val status = XBackup.service.status()
+                            it.source.send(
+                                Utils.translate(
+                                    "command.xb.statistics",
+                                    status.backupCount, sizeText(status.blobDiskUsage), sizeText(status.actualUsage)
                                 )
-                                val status = XBackup.service.status()
+                            )
+                            status.latestBackup?.let { latest ->
                                 it.source.send(
-                                    Utils.translate(
-                                        "command.xb.statistics",
-                                        status.backupCount, sizeText(status.blobDiskUsage), sizeText(status.actualUsage)
-                                    )
+                                    Utils.translate("command.xb.latest_backup", backupIdText(latest.id), latest.comment)
+                                        .apply {
+                                            hover(Utils.translate("command.xb.click_view_details"))
+                                            clickRun("/xb info ${latest.id}")
+                                        }
                                 )
                                 if (XBackup.config.backupInterval != 0 && !XBackup.config.mirrorMode) {
                                     val next = latest.created + XBackup.config.backupInterval * 1000
@@ -137,7 +138,7 @@ object Commands {
                                         )
                                     )
                                 }
-                            } else {
+                            } ?: run {
                                 it.source.send(Utils.translate("command.xb.no_backups"))
                             }
                         }

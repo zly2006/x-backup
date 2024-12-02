@@ -147,7 +147,9 @@ object XBackup : ModInitializer {
                 }
             )
             service = BackupDatabaseService(database, Path(".").absolute().resolve(config.blobPath).normalize(), config)
-            startCrontabJob(server)
+            if (!config.mirrorMode) {
+                startCrontabJob(server)
+            }
         }
         ServerLifecycleEvents.SERVER_STOPPING.register {
             runBlocking {
@@ -157,11 +159,13 @@ object XBackup : ModInitializer {
     }
 
     private fun startCrontabJob(server: MinecraftServer) {
+        require(!config.mirrorMode) {
+            "Crontab job should not be started in mirror mode"
+        }
         crontabJob = GlobalScope.launch {
             while (true) {
                 backgroundState = BackgroundState.IDLE
                 delay(10000)
-                if (config.backupInterval == 0) continue
                 val backup = service.getLatestBackup()
                 if (isBusy) continue
                 if (config.pruneConfig.enabled) {
@@ -220,15 +224,22 @@ object XBackup : ModInitializer {
     }
 
     suspend fun prune(server: MinecraftServer) {
-        val idToTime = service.listBackups(0, Int.MAX_VALUE)
-            .filter { !it.temporary }
-            .associate { it.id.toString() to it.created }
+        val backups = service.listBackups(0, Int.MAX_VALUE)
+        val latest = service.getLatestBackup()
+
+        val idToTime = backups.filter { !it.temporary }.associate { it.id.toString() to it.created }
         val toPrune = config.pruneConfig.prune(idToTime, System.currentTimeMillis())
         if (toPrune.isNotEmpty()) {
             try {
                 isBusy = true
                 server.broadcast(Utils.translate("message.xb.running_prune"))
                 toPrune.forEach {
+                    if (it == latest?.id?.toString()) {
+                        // skip the latest backup
+                        // Some players configured keep policy wrongly, and prune keeps deleting the latest backup
+                        // and then do scheduled backup again and again
+                        return@forEach
+                    }
                     server.broadcast(Utils.translate("message.xb.pruning_backup", it))
                     service.deleteBackup(service.getBackup(it.toInt())!!)
                 }
@@ -239,7 +250,8 @@ object XBackup : ModInitializer {
                 isBusy = false
             }
         }
-        service.listBackups(0, Int.MAX_VALUE).filter {
+
+        backups.filter {
             it.temporary && it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
         }.forEach {
             service.deleteBackup(it)

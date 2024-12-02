@@ -1,4 +1,5 @@
 {
+  "command.xb.background_task_status": "后台任务状态: %s",
   "command.xb.backup_corrupted": "备份 %s 已损坏",
   "command.xb.backup_deleted": "备份 %s 已删除",
   "command.xb.backup_details": "  %s %s (%s) 于 %s",
