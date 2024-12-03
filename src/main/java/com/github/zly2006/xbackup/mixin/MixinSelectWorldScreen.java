@@ -20,14 +20,15 @@ import java.nio.file.Path;
 
 @Mixin(SelectWorldScreen.class)
 public class MixinSelectWorldScreen extends Screen {
+    protected MixinSelectWorldScreen(Text title) {
+        super(title);
+    }
+
+    //? if poly_lib {
     @Unique ButtonWidget buttonWidget;
 
     @Shadow
     private WorldListWidget levelList;
-
-    protected MixinSelectWorldScreen(Text title) {
-        super(title);
-    }
 
     @Inject(
             method = "init",
@@ -36,7 +37,7 @@ public class MixinSelectWorldScreen extends Screen {
     private void postInit(CallbackInfo ci) {
         buttonWidget = ButtonWidget.builder(Text.literal("回"),
                 (button) -> {
-                    if (levelList.isSelected()) {
+                    if (levelList.getSelectedAsOptional().isPresent()) {
                         String name = levelList.getSelectedAsOptional().get().level.getName();
                         BackupDatabaseService service = new BackupDatabaseService(
                                 XBackup.INSTANCE.getDatabaseFromWorld(Path.of("saves", name)),
@@ -46,7 +47,7 @@ public class MixinSelectWorldScreen extends Screen {
                         BackupsGui.Companion.open((SelectWorldScreen) (Screen) this, service);
                     }
                 }).dimensions(this.width / 2 + 160, this.height - 28, 20, 20).build();
-        buttonWidget.active = levelList.isSelected();
+        buttonWidget.active = levelList.getSelectedAsOptional().isPresent();
         this.addDrawableChild(buttonWidget);
     }
 
@@ -56,7 +57,7 @@ public class MixinSelectWorldScreen extends Screen {
     )
     private void worldSelected(CallbackInfo ci) {
         if (buttonWidget != null) {
-            buttonWidget.active = levelList.isSelected();
+            buttonWidget.active = levelList.getSelectedAsOptional().isPresent();
         }
     }
 
@@ -69,4 +70,5 @@ public class MixinSelectWorldScreen extends Screen {
             setTooltip(Text.translatable("xb.button.backups"));
         }
     }
+    //?}
 }

@@ -1,5 +1,6 @@
 package com.github.zly2006.xbackup.gui;
 
+//? if poly_lib {
 import net.creeperhost.polylib.client.PolyPalette;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.elements.GuiButton;
@@ -122,3 +123,5 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
         return dialog;
     }
 }
+
+//?}
