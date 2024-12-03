@@ -59,3 +59,7 @@ Deletes a backup with the specified ID.
 /xb info <id>
 ```
 Displays information about a backup with the specified ID.
+
+## Credits
+
+Some part (GUI) of this mod is based on BackupManager by CreeperHost LTD.
