@@ -41,6 +41,7 @@
   "xb.gui.backups.title" : "备份列表",
   "xb.gui.backups.restored" : "成功还原备份",
   "xb.button.backups" : "世界备份",
+  "xb.gui.no_polylib": "未安装 PolyLib，请安装后使用 GUI 功能。",
   "xb.button.restore_backup" : "还原备份",
   "xb.button.delete_backup" : "删除备份",
   "xb.button.backups_entry" : "管理备份",

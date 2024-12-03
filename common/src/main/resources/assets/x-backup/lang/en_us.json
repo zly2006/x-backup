@@ -40,6 +40,7 @@
 
   "xb.gui.backups.title" : "World Backups",
   "xb.gui.backups.restored" : "Backup restored successfully!",
+  "xb.gui.no_polylib": "PolyLib is not installed, please install it to use the GUI.",
   "xb.button.backups" : "Backups",
   "xb.button.restore_backup" : "Restore Backup",
   "xb.button.delete_backup" : "Delete Backup",

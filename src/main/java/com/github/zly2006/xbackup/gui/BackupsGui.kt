@@ -18,9 +18,10 @@ import net.minecraft.client.texture.NativeImageBackedTexture
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import net.minecraft.util.Identifier
+import java.nio.file.Path
 import java.text.SimpleDateFormat
 
-class BackupsGui(private val service: BackupDatabaseService) : GuiProvider {
+class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path) : GuiProvider {
     private var backupList: GuiList<BackupDatabaseService.Backup?>? = null
     private var selected: BackupDatabaseService.Backup? = null
 
@@ -111,7 +112,7 @@ class BackupsGui(private val service: BackupDatabaseService) : GuiProvider {
     private fun deleteSelected(gui: ModularGui?) {
         if (selected == null) return
         runBlocking {
-            service!!.deleteBackup(selected!!)
+            service.deleteBackup(selected!!)
         }
         selected = null
         updateList()
@@ -120,7 +121,7 @@ class BackupsGui(private val service: BackupDatabaseService) : GuiProvider {
     private fun restoreSelected(gui: ModularGui) {
         if (selected == null) return
         runBlocking {
-//            service!!.restore(selected!!.id, )
+            service.restore(selected!!.id, worldRoot) { false }
         }
         selected = null
         OptionDialog.simpleInfoDialog(
@@ -131,7 +132,7 @@ class BackupsGui(private val service: BackupDatabaseService) : GuiProvider {
     }
 
     private fun updateList() {
-        val backups = service!!.listBackups(0, Int.MAX_VALUE)
+        val backups = service.listBackups(0, Int.MAX_VALUE)
         backups.sortedWith(Comparator.comparingLong(BackupDatabaseService.Backup::created).reversed())
         backupList!!.list.clear()
         backupList!!.list.addAll(backups)
@@ -226,8 +227,8 @@ class BackupsGui(private val service: BackupDatabaseService) : GuiProvider {
 
     companion object {
         private val DATE_TIME_FORMAT = SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
-        fun open(service: BackupDatabaseService) {
-            MinecraftClient.getInstance().setScreen(ModularGuiScreen(BackupsGui(service)))
+        fun open(service: BackupDatabaseService, worldRoot: Path) {
+            MinecraftClient.getInstance().setScreen(ModularGuiScreen(BackupsGui(service, worldRoot)))
         }
     }
 }

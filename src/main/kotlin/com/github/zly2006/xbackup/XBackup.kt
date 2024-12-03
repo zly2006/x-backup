@@ -27,6 +27,7 @@ import org.sqlite.SQLiteDataSource
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.*
 
@@ -225,7 +226,8 @@ object XBackup : ModInitializer {
                                 Path("xb.backups")
                                     .resolve(backId.toString())
                                     .resolve("x_backup.db")
-                                    .createParentDirectories()
+                                    .createParentDirectories(),
+                                StandardCopyOption.REPLACE_EXISTING
                             )
                             server.broadcast(
                                 Utils.translate(
