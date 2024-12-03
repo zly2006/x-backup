@@ -242,7 +242,7 @@ object XBackup : ModInitializer {
         }
     }
 
-    suspend fun prune(server: MinecraftServer) {
+    suspend fun prune(server: MinecraftServer): Int {
         val backups = service.listBackups(0, Int.MAX_VALUE).filter {
             it.created < System.currentTimeMillis() - config.pruneConfig.temporaryKeepPolicy()
         }
@@ -250,6 +250,7 @@ object XBackup : ModInitializer {
 
         val idToTime = backups.filter { !it.temporary }.associate { it.id.toString() to it.created }
         val toPrune = config.pruneConfig.prune(idToTime, System.currentTimeMillis())
+        var count = 0
         if (toPrune.isNotEmpty()) {
             try {
                 isBusy = true
@@ -263,6 +264,7 @@ object XBackup : ModInitializer {
                     }
                     server.broadcast(Utils.translate("message.xb.pruning_backup", it))
                     service.deleteBackup(service.getBackup(it.toInt())!!)
+                    count++
                 }
                 server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))
             } catch (e: Exception) {
@@ -274,7 +276,9 @@ object XBackup : ModInitializer {
 
         backups.filter { it.temporary }.forEach {
             service.deleteBackup(it)
+            count++
         }
+        return count
     }
 
     fun ensureNotBusy(context: CoroutineContext = server.asCoroutineDispatcher(), block: suspend () -> Unit) {

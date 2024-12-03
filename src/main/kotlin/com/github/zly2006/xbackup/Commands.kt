@@ -18,6 +18,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToStream
 import kotlinx.serialization.json.put
+import me.lucko.fabric.api.permissions.v0.Permissions
 import net.minecraft.command.argument.ColumnPosArgumentType
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.ClickEvent
@@ -242,6 +243,7 @@ object Commands {
         dispatcher.register {
             literal("mirror") {
                 optional(argument("id", IntegerArgumentType.integer(1))) {
+                    requires = checkPermission("x_backup.mirror", 0)
                     executes {
                         val id = try {
                             IntegerArgumentType.getInteger(it, "id")
@@ -276,6 +278,7 @@ object Commands {
         dispatcher.register {
             literal("xb") {
                 literal("create") {
+                    requires = checkPermission("x_backup.create", 0)
                     optional(argument("comment", StringArgumentType.greedyString())) {
                         executes {
                             val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
@@ -315,6 +318,7 @@ object Commands {
                     }
                 }
                 literal("delete") {
+                    requires = checkPermission("x_backup.delete", 4)
                     argument("id", IntegerArgumentType.integer(1)).executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         XBackup.ensureNotBusy {
@@ -325,6 +329,7 @@ object Commands {
                     }
                 }
                 literal("restore") {
+                    requires = checkPermission("x_backup.restore", 0)
                     argument("id", IntegerArgumentType.integer(1)) {
                         literal("--chunk") {
                             argument("from", ColumnPosArgumentType.columnPos()) {
@@ -390,6 +395,7 @@ object Commands {
                     }
                 }
                 literal("debug") {
+                    requires = checkPermission("x_backup.debug", 4)
                     literal("inspect") {
                         // send the json details to the player
                         argument("id", IntegerArgumentType.integer(1)).executes {
@@ -488,6 +494,7 @@ object Commands {
                 }
                 literal("backup-interval") {
                     argument("seconds", IntegerArgumentType.integer()) {
+                        requires = checkPermission("x_backup.set_backup_interval")
                         executes {
                             XBackup.config.backupInterval = it.getArgument("seconds", Int::class.java)
                             XBackup.saveConfig()
@@ -501,6 +508,7 @@ object Commands {
                     }
                 }
                 literal("prune") {
+                    requires = checkPermission("x_backup.prune")
                     executes {
                         GlobalScope.launch(it.source.server.asCoroutineDispatcher()) {
                             XBackup.prune(it.source.server)
@@ -570,6 +578,16 @@ object Commands {
             }
             XBackup.log.info("[X Backup] Waiting for server to stop...")
             it.source.server.thread.join()
+        }
+    }
+
+    private fun checkPermission(perm: String, defaultLevel: Int = 2): (ServerCommandSource) -> Boolean = { source ->
+        try {
+            // Call fabric-permissions API, but it might not be available
+            Permissions.check(source, perm, defaultLevel)
+        } catch (e: NoClassDefFoundError) {
+            // If the API is not available, just return true
+            source.hasPermissionLevel(defaultLevel)
         }
     }
 }

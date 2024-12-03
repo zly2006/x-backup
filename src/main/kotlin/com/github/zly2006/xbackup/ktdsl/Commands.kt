@@ -28,6 +28,7 @@ open class RootBuilderScope<S>(
 @CommandBuilder
 class BuilderScope<S>: RootBuilderScope<S>(mutableListOf()) {
     var executes: Command<S>? = null
+    var requires: (S) -> Boolean = { true }
     @CommandBuilder
     fun executes(function: Command<S>) {
         executes = function
@@ -58,6 +59,7 @@ inline fun <S> ArgumentBuilder<S, *>.then(function: BuilderScope<S>.() -> Unit) 
     if (scope.executes != null) {
         this.executes(scope.executes)
     }
+    this.requires(scope.requires)
 }
 
 @CommandBuilder
