@@ -17,7 +17,7 @@ suspend fun main() {
         println("Please run this command in the world directory")
         return
     }
-    val worldRoot = Path(".").absolute().normalize()
+    val worldRoot = Path("").absolute().normalize()
 
     val database = Database.connect(
         SQLiteDataSource(

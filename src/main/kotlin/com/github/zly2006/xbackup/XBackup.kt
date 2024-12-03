@@ -26,6 +26,7 @@ import org.sqlite.SQLiteConnection
 import org.sqlite.SQLiteDataSource
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.*
 
@@ -137,17 +138,7 @@ object XBackup : ModInitializer {
             } else {
                 server.getSavePath(WorldSavePath.ROOT)
             }.toAbsolutePath()
-            val database = Database.connect(
-                SQLiteDataSource(
-                    SQLiteConfig().apply {
-                        enforceForeignKeys(true)
-                        setCacheSize(100_000)
-                        setJournalMode(SQLiteConfig.JournalMode.WAL)
-                    }
-                ).apply {
-                    url = "jdbc:sqlite:$worldPath/x_backup.db"
-                }
-            )
+            val database = getDatabaseFromWorld(worldPath)
             if (config.mirrorMode) {
                 val sourceConfig = kotlin.runCatching {
                     Json.decodeFromStream<Config>(Path(config.mirrorFrom!!, "config", "x-backup.config.json").inputStream())
@@ -163,7 +154,7 @@ object XBackup : ModInitializer {
                 )
             }
             else {
-                service = BackupDatabaseService(database, Path(".").absolute().resolve(config.blobPath).normalize(), config)
+                service = BackupDatabaseService(database, Path("").absolute().resolve(config.blobPath).normalize(), config)
             }
             if (!config.mirrorMode) {
                 startCrontabJob(server)
@@ -174,6 +165,21 @@ object XBackup : ModInitializer {
                 crontabJob?.cancelAndJoin()
             }
         }
+    }
+
+    fun getDatabaseFromWorld(worldPath: Path?): Database {
+        val database = Database.connect(
+            SQLiteDataSource(
+                SQLiteConfig().apply {
+                    enforceForeignKeys(true)
+                    setCacheSize(100_000)
+                    setJournalMode(SQLiteConfig.JournalMode.WAL)
+                }
+            ).apply {
+                url = "jdbc:sqlite:$worldPath/x_backup.db"
+            }
+        )
+        return database
     }
 
     @OptIn(DelicateCoroutinesApi::class)

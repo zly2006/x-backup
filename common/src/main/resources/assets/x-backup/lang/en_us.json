@@ -36,5 +36,13 @@
   "message.xb.running_prune": "Running prune...",
   "message.xb.running_scheduled_backup": "Running scheduled backup, please wait...",
   "message.xb.scheduled_backup": "Scheduled backup",
-  "message.xb.scheduled_backup_finished": "Scheduled backup %s finished, %s (%s after compression) +%s in %s ms"
+  "message.xb.scheduled_backup_finished": "Scheduled backup %s finished, %s (%s after compression) +%s in %s ms",
+
+  "xb.gui.backups.title" : "World Backups",
+  "xb.gui.backups.restored" : "Backup restored successfully!",
+  "xb.button.backups" : "Backups",
+  "xb.button.restore_backup" : "Restore Backup",
+  "xb.button.delete_backup" : "Delete Backup",
+  "xb.button.backups_entry" : "Manage world backups",
+  "xb.button.back_arrow" : "← Back"
 }

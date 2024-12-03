@@ -3,3 +3,4 @@ accessible field net/minecraft/server/MinecraftServer running Z
 accessible field net/minecraft/server/MinecraftServer stopped Z
 accessible method net/minecraft/server/MinecraftServer runServer ()V
 accessible field net/minecraft/network/ClientConnection disconnected Z
+accessible field net/minecraft/client/gui/screen/world/WorldListWidget$WorldEntry level Lnet/minecraft/world/level/storage/LevelSummary;

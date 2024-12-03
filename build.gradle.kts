@@ -40,6 +40,7 @@ repositories {
     mavenCentral()
     strictMaven("https://www.cursemaven.com", "CurseForge", "curse.maven")
     strictMaven("https://api.modrinth.com/maven", "Modrinth", "maven.modrinth")
+    maven("https://maven.creeperhost.net")
 }
 
 dependencies {
@@ -56,6 +57,10 @@ dependencies {
 
 //    include(modImplementation("me.lucko:fabric-permissions-api:0.3.1")!!)
     modImplementation("net.fabricmc.fabric-api:fabric-api:${deps["fabric_api"]}")
+
+    if (deps["poly_lib"].isNotEmpty()) {
+        modImplementation("net.creeperhost:polylib-fabric:${deps["poly_lib"]}")
+    }
 
     api(project(":common"))
     shadow(project(":common", configuration = "shadow"))
