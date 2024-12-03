@@ -50,6 +50,15 @@ class BackupDatabaseService(
         if (!blobDir.isDirectory()) {
             log.warn("Blob directory not found, creating...")
         }
+
+        transaction {
+            SchemaUtils.createMissingTablesAndColumns(
+                BackupEntryTable,
+                BackupTable,
+                BackupEntryBackupTable,
+                withLogs = false
+            )
+        }
     }
 
     val oneDriveService: IOnedriveUtils by lazy {
@@ -68,17 +77,6 @@ class BackupDatabaseService(
 
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO
-
-    init {
-        transaction {
-            SchemaUtils.createMissingTablesAndColumns(
-                BackupEntryTable,
-                BackupTable,
-                BackupEntryBackupTable,
-                withLogs = false
-            )
-        }
-    }
 
     object BackupEntryTable : IntIdTable("backup_entries") {
         val path = varchar("path", 255).index()
