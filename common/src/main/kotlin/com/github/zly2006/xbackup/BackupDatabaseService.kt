@@ -44,8 +44,8 @@ class BackupDatabaseService(
     @OptIn(DelicateCoroutinesApi::class)
     private val syncExecutor = newFixedThreadPoolContext(1, "XBackup-Sync")
     init {
-        require(blobDir.isAbsolute) {
-            "Blob directory must be absolute"
+        require(blobDir.isAbsolute && blobDir == blobDir.normalize()) {
+            "Blob directory must be absolute and normalized"
         }
         if (!blobDir.isDirectory()) {
             log.warn("Blob directory not found, creating...")
@@ -74,7 +74,8 @@ class BackupDatabaseService(
             SchemaUtils.createMissingTablesAndColumns(
                 BackupEntryTable,
                 BackupTable,
-                BackupEntryBackupTable
+                BackupEntryBackupTable,
+                withLogs = false
             )
         }
     }
@@ -207,7 +208,7 @@ class BackupDatabaseService(
         metadata: JsonObject? = null,
         predicate: (Path) -> Boolean,
     ): BackupResult {
-        if (blobDir.absolute().normalize().startsWith(root.absolute().normalize())) {
+        if (blobDir.startsWith(root.absolute().normalize())) {
             error("Blob directory cannot be inside the backup directory")
         }
         val files = ConcurrentHashMap.newKeySet<String>()

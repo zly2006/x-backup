@@ -281,7 +281,7 @@ object Commands {
                     requires = checkPermission("x_backup.create", 0)
                     optional(argument("comment", StringArgumentType.greedyString())) {
                         executes {
-                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
                             val comment = try {
                                 StringArgumentType.getString(it, "comment")
                             } catch (_: IllegalArgumentException) {
