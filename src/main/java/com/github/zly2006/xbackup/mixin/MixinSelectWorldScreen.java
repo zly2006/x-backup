@@ -44,7 +44,7 @@ public class MixinSelectWorldScreen extends Screen {
                                 Path.of("").toAbsolutePath().resolve(XBackup.config.getBlobPath()).normalize(),
                                 XBackup.config
                         );
-                        BackupsGui.Companion.open((SelectWorldScreen) (Screen) this, service);
+                        BackupsGui.Companion.open(service);
                     }
                 }).dimensions(this.width / 2 + 160, this.height - 28, 20, 20).build();
         buttonWidget.active = levelList.getSelectedAsOptional().isPresent();

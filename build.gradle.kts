@@ -4,7 +4,7 @@ plugins {
     kotlin("jvm") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.0"
     id("io.github.goooler.shadow") version "8.1.7"
-    //id("dev.kikugie.j52j")
+    id("dev.kikugie.j52j")
     id("me.modmuss50.mod-publish-plugin")
 }
 

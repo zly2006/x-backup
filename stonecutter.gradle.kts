@@ -6,7 +6,7 @@ plugins {
     kotlin("plugin.serialization") version "2.0.0" apply false
     id("io.github.goooler.shadow") version "8.1.7" apply false
     base
-    //id("dev.kikugie.j52j") version "1.0.2" apply false
+    id("dev.kikugie.j52j") version "1.0.2" apply false
     id("me.modmuss50.mod-publish-plugin") version "0.7.+" apply false // Publishes builds to hosting websites
 }
 stonecutter active "1.21.1" /* [SC] DO NOT EDIT */

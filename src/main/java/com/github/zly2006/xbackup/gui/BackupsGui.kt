@@ -13,7 +13,6 @@ import net.creeperhost.polylib.client.modulargui.lib.GuiRender
 import net.creeperhost.polylib.client.modulargui.lib.geometry.*
 import net.creeperhost.polylib.client.modulargui.sprite.Material
 import net.minecraft.client.MinecraftClient
-import net.minecraft.client.gui.screen.world.SelectWorldScreen
 import net.minecraft.client.texture.NativeImage
 import net.minecraft.client.texture.NativeImageBackedTexture
 import net.minecraft.text.Text
@@ -21,8 +20,7 @@ import net.minecraft.util.Formatting
 import net.minecraft.util.Identifier
 import java.text.SimpleDateFormat
 
-class BackupsGui(private val parent: SelectWorldScreen, private val service: BackupDatabaseService) :
-    GuiProvider {
+class BackupsGui(private val service: BackupDatabaseService) : GuiProvider {
     private var backupList: GuiList<BackupDatabaseService.Backup?>? = null
     private var selected: BackupDatabaseService.Backup? = null
 
@@ -228,8 +226,8 @@ class BackupsGui(private val parent: SelectWorldScreen, private val service: Bac
 
     companion object {
         private val DATE_TIME_FORMAT = SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
-        fun open(parent: SelectWorldScreen, service: BackupDatabaseService) {
-            MinecraftClient.getInstance().setScreen(ModularGuiScreen(BackupsGui(parent, service)))
+        fun open(service: BackupDatabaseService) {
+            MinecraftClient.getInstance().setScreen(ModularGuiScreen(BackupsGui(service)))
         }
     }
 }
