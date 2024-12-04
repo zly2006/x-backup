@@ -253,7 +253,8 @@ object Commands {
                             }
                         }
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        doRestore(id, it, path)
+                        val backup = getBackup(id)
+                        doRestore(backup, it, path)
                         1
                     }
                     literal("--stop").executes {
@@ -265,7 +266,8 @@ object Commands {
                             }
                         }
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        doRestore(id, it, path, forceStop = true)
+                        val backup = getBackup(id)
+                        doRestore(backup, it, path, forceStop = true)
                         1
                     }
                 }
@@ -339,7 +341,8 @@ object Commands {
                                     val to = ColumnPosArgumentType.getColumnPos(it, "to")
                                     val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
                                     val world = it.source.world
-                                    doRestore(id, it, path) {
+                                    val backup = getBackup(id)
+                                    doRestore(backup, it, path) {
                                         val p = path.resolve(it).normalize()
                                         if (!Utils.isFileInWorld(world, p)) {
                                             XBackup.log.debug("[X Backup] {} is not in world {}, skipping", p, world)
@@ -378,19 +381,22 @@ object Commands {
                         literal("--stop").executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                            doRestore(id, it, path, forceStop = true)
+                            val backup = getBackup(id)
+                            doRestore(backup, it, path, forceStop = true)
                             1
                         }
                         literal("--force").executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                            doRestore(id, it, path, recheck = false)
+                            val backup = getBackup(id)
+                            doRestore(backup, it, path, recheck = false)
                             1
                         }
                     }.executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        doRestore(id, it, path)
+                        val backup = getBackup(id)
+                        doRestore(backup, it, path)
                         1
                     }
                 }
@@ -521,27 +527,28 @@ object Commands {
     }
 
     private fun doRestore(
-        id: Int,
+        backup: BackupDatabaseService.Backup,
         it: CommandContext<ServerCommandSource>,
         path: Path,
         forceStop: Boolean = false,
         recheck: Boolean = true,
         filter: (Path) -> Boolean = { true },
     ) {
-        val backup = getBackup(id)
         // Note: on server thread
         if (recheck && !XBackup.service.check(backup)) {
-            it.source.sendError(Utils.translate("command.xb.backup_corrupted", backupIdText(id)))
+            it.source.sendError(Utils.translate("command.xb.backup_corrupted", backupIdText(backup.id)).apply {
+                hover(Utils.translate("command.xb.backup_corrupted.force", backupIdText(backup.id)))
+            })
             return
         }
         if (XBackup.config.backupBeforeRestore && !XBackup.config.mirrorMode) {
-            XBackup.reason = "Auto-backup before restoring to #$id"
+            XBackup.reason = "Auto-backup before restoring to #${backup.id}"
             XBackup.disableWatchdog = true
             it.source.server.save()
             it.source.server.setAutoSaving(false)
             XBackup.disableSaving = true
             runBlocking {
-                XBackup.service.createBackup(path.normalize(), "Auto-backup before restoring to #$id", true) { true }
+                XBackup.service.createBackup(path.normalize(), "Auto-backup before restoring to #${backup.id}", true) { true }
             }
             it.source.server.setAutoSaving(true)
             XBackup.disableSaving = false
@@ -556,12 +563,12 @@ object Commands {
                 try {
                     XBackup.serverStopHook = {}
                     runBlocking {
-                        XBackup.reason = "Restoring backup #$id"
-                        val result = XBackup.service.restore(id, path.normalize()) { !filter(it) }
-                        XBackup.reason = "Restoring backup #$id finished, launching server"
+                        XBackup.reason = "Restoring backup #${backup.id}"
+                        val result = XBackup.service.restore(backup.id, path.normalize()) { !filter(it) }
+                        XBackup.reason = "Restoring backup #${backup.id} finished, launching server"
                     }
                 } catch (e: Throwable) {
-                    XBackup.log.error("[X Backup] Error while restoring backup #$id", e)
+                    XBackup.log.error("[X Backup] Error while restoring backup #${backup.id}", e)
                 } finally {
                     if (!forceStop && !it.isSingleplayer) {
                         // restart the server

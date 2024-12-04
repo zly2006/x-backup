@@ -1,6 +1,7 @@
 {
   "command.xb.background_task_status": "Background task status: %s",
   "command.xb.backup_corrupted": "Backup %s is corrupted",
+  "command.xb.backup_corrupted.force": "Backup %s is corrupted, you can use --force option to restore it, the save may be corrupted!",
   "command.xb.backup_deleted": "Backup %s deleted",
   "command.xb.backup_details": "  %s %s (%s) on %s",
   "command.xb.backup_finished": "Backup %s by %s finished, %s (%s after compression) +%s in %s ms",
