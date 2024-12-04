@@ -1,6 +1,5 @@
 package com.github.zly2006.xbackup
 
-import RestartUtils
 import com.github.zly2006.xbackup.Utils.broadcast
 import com.github.zly2006.xbackup.Utils.finishRestore
 import com.github.zly2006.xbackup.Utils.save

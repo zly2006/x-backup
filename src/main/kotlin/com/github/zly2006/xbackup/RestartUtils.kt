@@ -1,3 +1,4 @@
+package com.github.zly2006.xbackup
 
 import net.fabricmc.loader.api.FabricLoader
 import java.lang.management.ManagementFactory

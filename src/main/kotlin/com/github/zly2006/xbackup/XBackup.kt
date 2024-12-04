@@ -1,15 +1,11 @@
 package com.github.zly2006.xbackup
 
-import RestartUtils
 import com.github.zly2006.xbackup.Utils.broadcast
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.json.put
+import kotlinx.serialization.json.*
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -258,7 +254,9 @@ object XBackup : ModInitializer {
         }
         val latest = service.getLatestBackup()
 
-        val idToTime = backups.filter { !it.temporary }.associate { it.id.toString() to it.created }
+        val idToTime = backups.filter {
+            !it.temporary && it.metadata?.get("scheduled")?.jsonPrimitive?.booleanOrNull == true
+        }.associate { it.id.toString() to it.created }
         val toPrune = config.pruneConfig.prune(idToTime, System.currentTimeMillis())
         var count = 0
         if (toPrune.isNotEmpty()) {
