@@ -18,8 +18,7 @@ jobs:
         os: [ubuntu-22.04, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       - uses: actions/cache@v3
         with:
           path: |
@@ -28,12 +27,7 @@ jobs:
             ~/.m2/repository
             ./.gradle
             ./**/.gradle
-            ./build
-            ./**/build
-          key: gradle-${{ runner.os }}
-          restore-keys: |
-            gradle-${{ runner.os }}
-            gradle-
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
       - name: validate gradle wrapper
         uses: gradle/wrapper-validation-action@v2
       - name: setup jdk 17
@@ -49,8 +43,10 @@ jobs:
       - name: make gradle wrapper executable
         if: ${{ runner.os != 'Windows' }}
         run: chmod +x ./gradlew
-      - name: build
+      - name: Build
         run: ./gradlew chiseledBuild cli:shadowJar
+      - name: Stop gradle daemon
+        run: ./gradlew --stop
       - name: capture build artifacts (mods)
         if: ${{ runner.os == 'Linux' }}
         uses: actions/upload-artifact@v4

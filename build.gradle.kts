@@ -54,8 +54,6 @@ dependencies {
     mappings("net.fabricmc:yarn:$mcVersion+build.${deps["yarn_build"]}:v2")
     modImplementation("net.fabricmc:fabric-loader:${deps["fabric_loader"]}")
     modImplementation("net.fabricmc:fabric-language-kotlin:${deps["kotlin_loader_version"]}")
-
-//    include(modImplementation("me.lucko:fabric-permissions-api:0.3.1")!!)
     modImplementation("net.fabricmc.fabric-api:fabric-api:${deps["fabric_api"]}")
 
     if (deps["poly_lib"].isNotEmpty()) {

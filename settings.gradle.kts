@@ -24,6 +24,7 @@ stonecutter {
             "1.20.6",
             "1.21.1",
             "1.21.3",
+            "1.21.4"
         )
     }
     create(rootProject)
