@@ -1,8 +1,8 @@
 plugins {
     `maven-publish`
     id("fabric-loom")
-    kotlin("jvm") version "2.0.21"
-    kotlin("plugin.serialization") version "2.0.0"
+     kotlin("jvm")
+    kotlin("plugin.serialization")
     id("io.github.goooler.shadow") version "8.1.7"
     id("dev.kikugie.j52j")
     id("me.modmuss50.mod-publish-plugin")
@@ -54,10 +54,22 @@ dependencies {
     mappings("net.fabricmc:yarn:$mcVersion+build.${deps["yarn_build"]}:v2")
     modImplementation("net.fabricmc:fabric-loader:${deps["fabric_loader"]}")
     modImplementation("net.fabricmc:fabric-language-kotlin:${deps["kotlin_loader_version"]}")
-    modImplementation("net.fabricmc.fabric-api:fabric-api:${deps["fabric_api"]}")
+    fapi(
+        // Add modules from https://github.com/FabricMC/fabric
+        "fabric-lifecycle-events-v1",
+        "fabric-resource-loader-v0"
+    )
+
+    if (stonecutter.eval(stonecutter.current.version, ">=1.20")) {
+        fapi("fabric-command-api-v2")
+    }
 
     if (deps["poly_lib"].isNotEmpty()) {
-        modImplementation("net.creeperhost:polylib-fabric:${deps["poly_lib"]}")
+        modCompileOnly("net.creeperhost:polylib-fabric:${deps["poly_lib"]}") {
+            exclude(group = "net.fabricmc.fabric-api")
+            exclude(group = "dev.architectury")
+            exclude(group = "teamreborn")
+        }
     }
 
     api(project(":common"))
