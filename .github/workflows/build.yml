@@ -4,7 +4,11 @@
 # against bad commits.
 
 name: build
-on: [pull_request, push]
+on: [
+  pull_request,
+  push,
+  workflow_dispatch
+]
 
 jobs:
   build:
@@ -16,6 +20,20 @@ jobs:
     steps:
       - name: checkout repository
         uses: actions/checkout@v4
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.m2/repository
+            ./.gradle
+            ./**/.gradle
+            ./build
+            ./**/build
+          key: gradle-${{ runner.os }}
+          restore-keys: |
+            gradle-${{ runner.os }}
+            gradle-
       - name: validate gradle wrapper
         uses: gradle/wrapper-validation-action@v2
       - name: setup jdk 17
@@ -43,5 +61,5 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         uses: actions/upload-artifact@v4
         with:
-          name: CLI
+          name: CLI Tools
           path: cli/build/libs
