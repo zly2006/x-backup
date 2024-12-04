@@ -188,7 +188,7 @@ object Commands {
                 }
                 literal("version") {
                     executes {
-                        it.source.send(Utils.translate("command.xb.version", XBackup.MOD_VERSION))
+                        it.source.send(Utils.translate("command.xb.version", XBackup.MOD_VERSION + "(" + XBackup.GIT_COMMIT + ")"))
                         1
                     }
                 }
