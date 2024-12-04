@@ -183,10 +183,14 @@ publishMods {
     modrinth {
         projectId = property("publish.modrinth").toString()
         accessToken = providers.environmentVariable("MODRINTH_TOKEN")
-        minecraftVersions.add(mcVersion)
-        requires {
-            slug = "fabric-api"
-        }
+        minecraftVersions.addAll(
+            property("mod.mc_targets").toString().split(" ")
+                .filter { it.isNotBlank() }
+                .plus(mcVersion)
+                .distinct()
+        )
+        requires("fabric-api", "fabric-language-kotlin")
+        optional("polylib")
     }
 
 //    curseforge {
