@@ -21,7 +21,7 @@ kotlin {
 
 @Suppress("PackageUpdate")
 dependencies {
-    fun DependencyHandler.sharedLib(dependency: String) =
+    fun DependencyHandler.sharedLib(dependency: Any) =
         shadow(api(dependency)!!)!!
 
     sharedLib("org.jetbrains.exposed:exposed-core:$exposed_version")
@@ -29,6 +29,9 @@ dependencies {
     sharedLib("org.jetbrains.exposed:exposed-json:$exposed_version")
     sharedLib("org.xerial:sqlite-jdbc:3.46.0.0")
     sharedLib("org.apache.commons:commons-compress:1.26.0")
+//    include(implementation("com.squareup.okio:okio-jvm:3.2.0")!!)
+    sharedLib("com.squareup.okhttp3:okhttp:4.12.0")
+    sharedLib(project(":api"))
     // kotlin
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")

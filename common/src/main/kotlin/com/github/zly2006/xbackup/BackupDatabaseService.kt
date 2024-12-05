@@ -1,5 +1,6 @@
 package com.github.zly2006.xbackup
 
+import com.github.zly2006.xbackup.api.*
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
 import kotlinx.serialization.Serializable
@@ -24,13 +25,8 @@ import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import java.util.zip.GZIPInputStream
-import java.util.zip.GZIPOutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
+import java.util.zip.*
 import kotlin.coroutines.CoroutineContext
 import kotlin.io.path.*
 
@@ -39,10 +35,18 @@ class BackupDatabaseService(
     val database: Database,
     private val blobDir: Path,
     config: Config
-) : CoroutineScope {
+) : CoroutineScope, XBackupKotlinAsyncApi {
     private val log = LoggerFactory.getLogger("XBackup")!!
     @OptIn(DelicateCoroutinesApi::class)
     private val syncExecutor = newFixedThreadPoolContext(1, "XBackup-Sync")
+
+    var activeTask: String = "Idle"
+
+    /**
+     * percentage of the active task
+     */
+    var activeTaskProgress: Int = -1
+
     init {
         require(blobDir.isAbsolute && blobDir == blobDir.normalize()) {
             "Blob directory must be absolute and normalized"
@@ -61,9 +65,10 @@ class BackupDatabaseService(
         }
     }
 
-    val oneDriveService: IOnedriveUtils by lazy {
-        ServiceLoader.load(IOnedriveUtils::class.java)
-            ?.firstOrNull() ?: error("Onedrive service not found")
+    lateinit var oneDriveService: CloudStorageProvider
+
+    override fun setCloudStorageProvider(provider: CloudStorageProvider) {
+        oneDriveService = provider
     }
     
     private val ignoredFiles = setOf(
@@ -114,62 +119,102 @@ class BackupDatabaseService(
 
     @Serializable
     data class BackupEntry(
-        val id: Int,
-        val path: String,
-        val size: Long,
-        val zippedSize: Long,
-        val lastModified: Long,
-        val isDirectory: Boolean,
-        val hash: String,
-        val compress: Int,
-        val cloudDriveId: Byte?,
-    ) {
+        override val id: Int,
+        override val path: String,
+        override val size: Long,
+        private var _zippedSize: Long,
+        override val lastModified: Long,
+        override val isDirectory: Boolean,
+        override val hash: String,
+        private var _compress: Int,
+        override val cloudDriveId: Byte?,
+    ) : IBackupEntry {
+        override val zippedSize: Long get() = _zippedSize
+        override val compress: Int get() = _compress
+
         override fun toString(): String {
             return "$id:/$path"
         }
 
-        fun valid(service: BackupDatabaseService): Boolean {
+        override fun valid(service: XBackupApi): Boolean {
             return isDirectory ||
                     (service.getBlobFile(hash).exists() && (service.getBlobFile(hash).fileSize() == zippedSize))
         }
 
-        suspend fun getInputStream(service: BackupDatabaseService): InputStream? {
+        override fun getInputStream(service: XBackupApi): InputStream? {
+            return runBlocking { getInputStreamInternal(service as BackupDatabaseService) }
+        }
+
+        suspend fun getInputStreamInternal(service: BackupDatabaseService): InputStream? {
             val blob = service.getBlobFile(hash)
-            if (cloudDriveId != null && !blob.exists()) {
-                Class.forName("com.github.zly2006.xbackup.OnedriveUtils")
-                service.oneDriveService.downloadBlob(hash)
+            if (cloudDriveId != null && !valid(service)) {
+                service.activeTask = "Downloading backup"
+                try {
+                    blob.outputStream().use { output ->
+                        service.oneDriveService.downloadBlob(hash).use { input ->
+                            input.copyTo(output)
+                        }
+                    }
+                    log.info("Downloaded blob $hash")
+                    if (blob.fileSize() == size) {
+                        log.warn("Gzipped file was unzipped unexpectedly, set it to non-zipped")
+                        service.syncDbQuery {
+                            _compress = 0
+                            _zippedSize = size
+                            BackupEntryTable.update({ BackupEntryTable.id eq this@BackupEntry.id }) {
+                                it[compress] = 0
+                                it[zippedSize] = size
+                            }
+                        }
+                    }
+                    else {
+                        require(blob.fileSize() == zippedSize) {
+                            "Downloaded blob $hash size mismatch: expected: $zippedSize, actual: ${blob.fileSize()}"
+                        }
+                    }
+                } catch (e: IOException) {
+                    log.error("Error downloading blob $hash", e)
+                }
             }
             if (!blob.exists()) {
                 return null
             }
-            return when (compress) {
-                0 -> blob.inputStream()
-                1 -> GZIPInputStream(blob.inputStream())
-                2 -> ZipInputStream(blob.inputStream()).use {
-                    @Suppress("ControlFlowWithEmptyBody")
-                    while (it.nextEntry.let { zipEntry ->
-                            if (zipEntry == null) false
-                            else zipEntry.name != path
-                        }) { }
-                    it
-                }
+            try {
+                return when (compress) {
+                    0 -> blob.inputStream()
+                    1 -> withContext(Dispatchers.IO) {
+                        GZIPInputStream(blob.inputStream())
+                    }
+                    2 -> ZipInputStream(blob.inputStream()).use {
+                        @Suppress("ControlFlowWithEmptyBody")
+                        while (it.nextEntry.let { zipEntry ->
+                                if (zipEntry == null) false
+                                else zipEntry.name != path
+                            }) {
+                        }
+                        it
+                    }
 
-                else -> error("Unknown compress type: $compress")
+                    else -> error("Unknown compress type: $compress")
+                }
+            } catch (e: ZipException) {
+                log.error("Error reading zip file $hash", e)
+                return null
             }
         }
     }
 
     @Serializable
     class Backup(
-        val id: Int,
-        val size: Long,
-        val zippedSize: Long,
-        val created: Long,
-        val comment: String,
-        val entries: List<BackupEntry>,
-        val temporary: Boolean,
+        override val id: Int,
+        override val size: Long,
+        override val zippedSize: Long,
+        override val created: Long,
+        override val comment: String,
+        override val entries: List<BackupEntry>,
+        override val temporary: Boolean,
         val metadata: JsonObject?,
-    )
+    ) : IBackup
 
     data class XBackupStatus(
         val blobDiskUsage: Long,
@@ -368,20 +413,6 @@ class BackupDatabaseService(
         )
     }
 
-    private suspend inline fun <T> retry(times: Int, function: () -> T): T {
-        var lastException: Throwable? = null
-        repeat(times) {
-            try {
-                return function()
-            } catch (e: Throwable) {
-                log.error("Error in retry, attempt ${it + 1}/$times", e)
-                lastException = e
-                delay(1000)
-            }
-        }
-        throw RuntimeException("Retry failed", lastException)
-    }
-
     suspend fun deleteBackup(backup: Backup) {
         dbQuery {
             backup.entries.forEach { entry ->
@@ -400,13 +431,15 @@ class BackupDatabaseService(
         }
     }
 
-    fun getBlobFile(hash: String): Path {
+    override fun getBlobFile(hash: String): Path {
         return blobDir.resolve(hash.take(2)).resolve(hash.drop(2)).createParentDirectories()
     }
 
-    suspend fun getBackup(id: Int): Backup? = dbQuery {
+    suspend fun getBackupInternal(id: Int): Backup? = dbQuery {
         BackupTable.selectAll().where { BackupTable.id eq id }.firstOrNull()?.toBackup()
     }
+
+    override fun getBackup(id: Int): IBackup? = runBlocking { getBackupInternal(id) }
 
     /**
      * Restore backup to target directory
@@ -417,7 +450,7 @@ class BackupDatabaseService(
      * usually should be opposite of the predicate used in [createBackup]
      */
     suspend fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) = dbQuery {
-        val backup = getBackup(id) ?: error("Backup not found")
+        val backup = getBackupInternal(id) ?: error("Backup not found")
         val map = backup.entries.associateBy { it.path }.filter { !ignored(Path(it.key)) }
         for (it in target.normalize().toFile().walk().drop(1)) {
             val path = target.normalize().relativize(it.toPath()).normalize()
@@ -453,7 +486,7 @@ class BackupDatabaseService(
                             }
                             val blob = getBlobFile(it.value.hash)
                             path.outputStream().buffered().use { output ->
-                                val input = it.value.getInputStream(this@BackupDatabaseService)
+                                val input = it.value.getInputStreamInternal(this@BackupDatabaseService)
                                 if (input == null) {
                                     log.error("Blob not found for file ${it.key}, hash: ${it.value.hash}")
                                     return@async
@@ -485,6 +518,7 @@ class BackupDatabaseService(
                     }
                 }
                 val doneNow = done.incrementAndGet()
+                activeTaskProgress = 100 * doneNow / map.size
                 if (verbose || doneNow % 30 == 0 && worked) {
                     log.info("[X Backup] Restored $done files // current: ${it.key}")
                 }
@@ -504,14 +538,11 @@ class BackupDatabaseService(
     /**
      * Check if this backup is valid
      */
-    fun check(backup: Backup): Boolean {
+    override fun check(backup: IBackup): Boolean {
         var valid = true
         backup.entries.forEach {
             val blobFile = getBlobFile(it.hash)
             if (it.isDirectory) return@forEach
-            if (it.cloudDriveId != null) {
-
-            }
             else if (!blobFile.exists()) {
                 log.error("Blob not found for file ${it.path}, hash: ${it.hash}")
                 valid = false
@@ -541,7 +572,7 @@ class BackupDatabaseService(
                             put("cloud", it.cloudDriveId)
                         }.toString()
                     })
-                val input = requireNotNull(it.getInputStream(this)) {
+                val input = requireNotNull(it.getInputStreamInternal(this)) {
                     "Blob not found for file ${it.path}, hash: ${it.hash}"
                 }
                 input.copyTo(zip)
@@ -581,10 +612,13 @@ class BackupDatabaseService(
         }
     }
 
-    suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =
+    override suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =
         newSuspendedTransaction(Dispatchers.IO, database, statement = block)
 
-    fun listBackups(offset: Int, limit: Int): List<Backup> {
+    override suspend fun <T> syncDbQuery(block: suspend Transaction.() -> T): T =
+        newSuspendedTransaction(syncExecutor, database, statement = block)
+
+    override fun listBackups(offset: Int, limit: Int): List<Backup> {
         return transaction {
             BackupTable.selectAll()
                 .orderBy(BackupTable.id to SortOrder.DESC)
@@ -597,7 +631,7 @@ class BackupDatabaseService(
         BackupTable.selectAll().lastOrNull()?.toBackup()
     }
 
-    fun backupCount() = transaction {
+    override fun backupCount() = transaction {
         BackupTable.selectAll().count().toInt()
     }
 

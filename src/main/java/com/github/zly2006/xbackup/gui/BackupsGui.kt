@@ -150,7 +150,7 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
 
             val icon = backup.entries.firstOrNull { it.path == "icon.png" }
             val stream = runBlocking {
-                icon?.getInputStream(service)
+                icon?.getInputStreamInternal(service)
             }
             if (stream != null) {
                 leftOffset = ySize().toInt() - 2

@@ -40,6 +40,9 @@ public class MixinSelectWorldScreen extends Screen {
     private void postInit(CallbackInfo ci) {
         buttonWidget = ButtonWidget.builder(Text.literal("回"),
                 (button) -> {
+                    if (!FabricLoader.getInstance().isModLoaded("polylib")) {
+                        return;
+                    }
                     if (levelList.getSelectedAsOptional().isPresent()) {
                         String name = levelList.getSelectedAsOptional().get().level.getName();
                         BackupDatabaseService service = new BackupDatabaseService(

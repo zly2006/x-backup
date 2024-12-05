@@ -1,6 +1,7 @@
 package com.github.zly2006.xbackup
 
 import com.github.zly2006.xbackup.Utils.broadcast
+import com.github.zly2006.xbackup.api.XBackupApi
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -15,6 +16,8 @@ import net.minecraft.server.MinecraftServer
 import net.minecraft.text.Text
 import net.minecraft.util.Util
 import net.minecraft.util.WorldSavePath
+import okhttp3.OkHttpClient
+import okhttp3.internal.userAgent
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
 import org.sqlite.SQLiteConfig
@@ -148,18 +151,31 @@ object XBackup : ModInitializer {
                 val config = sourceConfig ?: config
                 service = BackupDatabaseService(
                     database,
-                    Path(config.mirrorFrom!!).resolve(config.blobPath).absolute().normalize(),
+                    Path(this.config.mirrorFrom!!).resolve(config.blobPath).absolute().normalize(),
                     config
                 )
             }
             else {
                 service = BackupDatabaseService(database, Path("").absolute().resolve(config.blobPath).normalize(), config)
             }
+            XBackupApi.setInstance(service)
+            if (config.cloudBackupToken != null) {
+                val httpClient = OkHttpClient.Builder().apply {
+                    this.addInterceptor {
+                        val request = it.request().newBuilder()
+                            .header("User-Agent", "XBackup/$MOD_VERSION RedenMC/0.1-x-backup $userAgent")
+                            .build()
+                        it.proceed(request)
+                    }
+                }.build()
+                service.oneDriveService = OnedriveSupport(config, httpClient)
+            }
             if (!config.mirrorMode) {
                 startCrontabJob(server)
             }
         }
         ServerLifecycleEvents.SERVER_STOPPING.register {
+            XBackupApi.setInstance(null)
             runBlocking {
                 crontabJob?.cancelAndJoin()
             }
@@ -271,7 +287,7 @@ object XBackup : ModInitializer {
                         return@forEach
                     }
                     server.broadcast(Utils.translate("message.xb.pruning_backup", it))
-                    service.deleteBackup(service.getBackup(it.toInt())!!)
+                    service.deleteBackup(service.getBackupInternal(it.toInt())!!)
                     count++
                 }
                 server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))

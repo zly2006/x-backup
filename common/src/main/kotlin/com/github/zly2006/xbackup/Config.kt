@@ -94,4 +94,7 @@ class Config {
 
     @SerialName("prune")
     val pruneConfig = PruneConfig()
+
+    @SerialName("cloud_backup_token")
+    var cloudBackupToken: String? = null
 }

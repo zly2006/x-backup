@@ -30,10 +30,7 @@ import net.minecraft.util.WorldSavePath
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.io.path.Path
-import kotlin.io.path.createParentDirectories
-import kotlin.io.path.extension
-import kotlin.io.path.outputStream
+import kotlin.io.path.*
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.system.exitProcess
@@ -100,7 +97,7 @@ fun MutableText.clickRun(cmd: String) {
 object Commands {
     private fun getBackup(id: Int): BackupDatabaseService.Backup {
         return runBlocking {
-            XBackup.service.getBackup(id)
+            XBackup.service.getBackupInternal(id)
         } ?: throw SimpleCommandExceptionType(
             Utils.translate("command.xb.backup_not_found", backupIdText(id))
         ).create()
@@ -116,6 +113,9 @@ object Commands {
                             it.source.send(Text.literal("X Backup is in mirror mode").formatted(Formatting.GOLD))
                         }
                         it.source.send(Utils.translate("command.xb.background_task_status", XBackup.backgroundState.toString()))
+                        if (XBackup.service.activeTaskProgress != -1) {
+                            it.source.send(Text.literal("云备份任务：${XBackup.service.activeTask} ${XBackup.service.activeTaskProgress}%"))
+                        }
                         GlobalScope.launch(it.source.server.asCoroutineDispatcher()) {
                             val status = XBackup.service.status()
                             it.source.send(
@@ -194,8 +194,8 @@ object Commands {
                 literal("info") {
                     argument("id", IntegerArgumentType.integer(1)).executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
+                        val backup = getBackup(id)
                         XBackup.ensureNotBusy {
-                            val backup = getBackup(id)
                             it.source.send(
                                 Utils.translate(
                                     "command.xb.backup_info",
@@ -223,6 +223,10 @@ object Commands {
                                             formatted(Formatting.DARK_GREEN)
                                         }
                                     )
+                                    if (backup.entries.all { it.isDirectory || it.cloudDriveId != null }) {
+                                        append("\n")
+                                        append(Text.literal("此存档已完成云备份。"))
+                                    }
                                 }
                             )
                         }
@@ -313,6 +317,12 @@ object Commands {
                                 )
                                 XBackup.disableSaving = false
                                 it.source.server.setAutoSaving(true)
+                                val id = result.backId
+                                if (XBackup.config.cloudBackupToken != null) {
+                                    it.source.send(Utils.translate("command.xb.uploading_backup", backupIdText(id)))
+                                    XBackup.service.oneDriveService.uploadBackup(XBackup.service, id)
+                                    it.source.send(Utils.translate("command.xb.backup_uploaded", backupIdText(id)))
+                                }
                             }
                             1
                         }
@@ -322,8 +332,9 @@ object Commands {
                     requires = checkPermission("x_backup.delete", 4)
                     argument("id", IntegerArgumentType.integer(1)).executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
+                        val backup = getBackup(id)
                         XBackup.ensureNotBusy {
-                            XBackup.service.deleteBackup(getBackup(id))
+                            XBackup.service.deleteBackup(backup)
                             it.source.send(Utils.translate("command.xb.backup_deleted", backupIdText(id)))
                         }
                         1
@@ -405,8 +416,8 @@ object Commands {
                         // send the json details to the player
                         argument("id", IntegerArgumentType.integer(1)).executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
+                            val backup = getBackup(id)
                             XBackup.ensureNotBusy {
-                                val backup = getBackup(id)
                                 val file = Path("export").resolve("backup-$id.json")
                                     .toAbsolutePath()
                                     .createParentDirectories()
@@ -421,20 +432,50 @@ object Commands {
                     literal("upload") {
                         argument("id", IntegerArgumentType.integer(1)).executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
+                            val backup = getBackup(id)
+                            if (backup.entries.all { it.isDirectory || it.cloudDriveId != null }) {
+//                                it.source.send(Utils.translate("command.xb.backup_already_uploaded", backupIdText(id)))
+                                it.source.sendError(Text.literal("此存档已完成云备份。"))
+                                return@executes 0
+                            }
                             XBackup.ensureNotBusy {
-                                val backup = getBackup(id)
                                 it.source.send(Utils.translate("command.xb.uploading_backup", backupIdText(id)))
-                                val result = XBackup.service.oneDriveService.uploadOneDrive(XBackup.service, backup.id)
+                                val result = XBackup.service.oneDriveService.uploadBackup(XBackup.service, backup.id)
                                 it.source.send(Utils.translate("command.xb.backup_uploaded", backupIdText(id)))
                             }
                             1
                         }
                     }
+                    literal("download") {
+                        argument("id", IntegerArgumentType.integer(1)).executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            val backup = getBackup(id)
+                            try {
+                                val total = backup.entries.count { !it.isDirectory }
+                                var downloaded = 0
+                                backup.entries.filter { !it.isDirectory }.forEach {
+                                    runBlocking {
+                                        it.getInputStream(XBackup.service)
+                                    }
+                                    require(XBackup.service.getBlobFile(it.hash).fileSize() == it.zippedSize) {
+                                        "$it is not fully uploaded"
+                                    }
+                                    downloaded++
+                                    XBackup.service.activeTaskProgress = 100 * downloaded / total
+                                }
+                                it.source.send(Text.keybind("Debug: Downloaded backup $id"))
+                                1
+                            } catch (e: Throwable) {
+                                log.error("Error while downloading backup $id", e)
+                                0
+                            }
+                        }
+                    }
                     literal("export") {
                         argument("id", IntegerArgumentType.integer(1)).executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
+                            val backup = getBackup(id)
                             XBackup.ensureNotBusy {
-                                val backup = getBackup(id)
                                 it.source.send(Utils.translate("command.xb.exporting_backup", backupIdText(id)))
                                 val result = XBackup.service.restore(
                                     backup.id,
@@ -476,8 +517,8 @@ object Commands {
                     literal("check") {
                         argument("id", IntegerArgumentType.integer(1)).executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
+                            val backup = getBackup(id)
                             XBackup.ensureNotBusy {
-                                val backup = getBackup(id)
                                 it.source.send(Utils.translate("command.xb.checking_backup", backupIdText(id)))
                                 val result = XBackup.service.check(backup)
                                 if (result) {

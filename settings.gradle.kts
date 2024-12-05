@@ -33,3 +33,4 @@ stonecutter {
 include("common")
 include("compat-fake-source")
 include("cli")
+include("api")
