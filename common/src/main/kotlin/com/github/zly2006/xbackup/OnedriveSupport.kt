@@ -105,12 +105,12 @@ class OnedriveSupport(
                                 header("Authorization", "Bearer $token")
                             }.build()
                         ).execute().use { response ->
+                            if (!response.isSuccessful) {
+                                error("Upload failed $entry: ${response.body!!.string()}")
+                            }
                             val cloudDriveSize = response.body!!.json()["size"]?.jsonPrimitive?.long
                             require(cloudDriveSize == entry.zippedSize || cloudDriveSize == entry.size) {
                                 "Uploaded size mismatch: $entry, expected: ${entry.zippedSize}, actual: $cloudDriveSize, raw: ${entry.size}"
-                            }
-                            if (!response.isSuccessful) {
-                                throw IllegalStateException("Upload failed $entry: ${response.body!!.string()}")
                             }
                         }
                         done++

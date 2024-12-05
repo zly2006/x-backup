@@ -193,14 +193,18 @@ publishMods {
         optional("polylib")
     }
 
-//    curseforge {
-//        projectId = property("publish.curseforge").toString()
-//        accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
-//        minecraftVersions.add(mcVersion)
-//        requires {
-//            slug = "fabric-api"
-//        }
-//    }
+    curseforge {
+        projectId = property("publish.curseforge").toString()
+        accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
+        minecraftVersions.addAll(
+            property("mod.mc_targets").toString().split(" ")
+                .filter { it.isNotBlank() }
+                .plus(mcVersion)
+                .distinct()
+        )
+        requires("fabric-api", "fabric-language-kotlin")
+        optional("polylib")
+    }
 }
 
 /*
