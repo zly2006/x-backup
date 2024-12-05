@@ -40,12 +40,12 @@ class BackupDatabaseService(
     @OptIn(DelicateCoroutinesApi::class)
     private val syncExecutor = newFixedThreadPoolContext(1, "XBackup-Sync")
 
-    var activeTask: String = "Idle"
+    override var activeTask: String = "Idle"
 
     /**
      * percentage of the active task
      */
-    var activeTaskProgress: Int = -1
+    override var activeTaskProgress: Int = -1
 
     init {
         require(blobDir.isAbsolute && blobDir == blobDir.normalize()) {
