@@ -434,8 +434,7 @@ object Commands {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             val backup = getBackup(id)
                             if (backup.entries.all { it.isDirectory || it.cloudDriveId != null }) {
-//                                it.source.send(Utils.translate("command.xb.backup_already_uploaded", backupIdText(id)))
-                                it.source.sendError(Text.literal("此存档已完成云备份。"))
+                                it.source.send(Utils.translate("command.xb.backup_already_uploaded", backupIdText(id)))
                                 return@executes 0
                             }
                             XBackup.ensureNotBusy {

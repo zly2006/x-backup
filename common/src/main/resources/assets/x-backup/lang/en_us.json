@@ -1,5 +1,6 @@
 {
   "command.xb.background_task_status": "Background task status: %s",
+  "command.xb.backup_already_uploaded": "Backup %s has been uploaded to cloud storage.",
   "command.xb.backup_corrupted": "Backup %s is corrupted",
   "command.xb.backup_corrupted.force": "Backup %s is corrupted, you can use --force option to restore it, the save may be corrupted!",
   "command.xb.backup_deleted": "Backup %s deleted",
@@ -38,13 +39,12 @@
   "message.xb.running_scheduled_backup": "Running scheduled backup, please wait...",
   "message.xb.scheduled_backup": "Scheduled backup",
   "message.xb.scheduled_backup_finished": "Scheduled backup %s finished, %s (%s after compression) +%s in %s ms",
-
-  "xb.gui.backups.title" : "World Backups",
-  "xb.gui.backups.restored" : "Backup restored successfully!",
-  "xb.gui.no_polylib": "PolyLib is not installed, please install it to use the GUI.",
-  "xb.button.backups" : "Backups",
-  "xb.button.restore_backup" : "Restore Backup",
-  "xb.button.delete_backup" : "Delete Backup",
-  "xb.button.backups_entry" : "Manage world backups",
-  "xb.button.back_arrow" : "← Back"
+  "xb.button.back_arrow": "← Back",
+  "xb.button.backups": "Backups",
+  "xb.button.backups_entry": "Manage world backups",
+  "xb.button.delete_backup": "Delete Backup",
+  "xb.button.restore_backup": "Restore Backup",
+  "xb.gui.backups.restored": "Backup restored successfully!",
+  "xb.gui.backups.title": "World Backups",
+  "xb.gui.no_polylib": "PolyLib is not installed, please install it to use the GUI."
 }

@@ -4,6 +4,7 @@ import com.github.zly2006.xbackup.Utils.broadcast
 import com.github.zly2006.xbackup.api.XBackupApi
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import io.ktor.client.*
+import io.ktor.client.engine.apache5.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
@@ -17,6 +18,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.client.MinecraftClient
 import net.minecraft.server.MinecraftServer
+import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
 import net.minecraft.util.Util
 import net.minecraft.util.WorldSavePath
@@ -36,15 +38,17 @@ object XBackup : ModInitializer {
     lateinit var config: Config
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
-    const val MOD_VERSION = /*$ mod_version*/ "0.3.2"
-    const val GIT_COMMIT = /*$ git_commit*/ "084bee7"
-    const val COMMIT_DATE = /*$ commit_date*/ "2024-12-05T17:59:49+08:00"
+    const val MOD_VERSION = /*$ mod_version*/ "0.3.4-pre.5"
+    const val GIT_COMMIT = /*$ git_commit*/ "9a47902"
+    const val COMMIT_DATE = /*$ commit_date*/ "2024-12-05T23:35:08+08:00"
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
+
     @get:JvmName("isServerStarted")
     val serverStarted get() = ::server.isInitialized
     var restoring = false
     var serverStopHook: (MinecraftServer) -> Unit = {}
+
     // Backup
     var isBusy = false
 
@@ -61,6 +65,7 @@ object XBackup : ModInitializer {
     enum class BackgroundState {
         IDLE, UNKNOWN, SCHEDULED_BACKUP, PRUNING
     }
+
     var backgroundState = BackgroundState.UNKNOWN
     var crontabJob: Job? = null
 
@@ -117,6 +122,7 @@ object XBackup : ModInitializer {
                     ProcessBuilder(RestartUtils.generateUnixRestartCommand())
                         .start()
                 }
+
                 else -> {
                     error("Unsupported operating system")
                 }
@@ -139,13 +145,20 @@ object XBackup : ModInitializer {
             }
             val worldPath = if (config.mirrorMode) {
                 File(config.mirrorFrom!!).toPath().resolve("world")
-            } else {
+            }
+            else {
                 server.getSavePath(WorldSavePath.ROOT)
             }.toAbsolutePath()
             val database = getDatabaseFromWorld(worldPath)
             if (config.mirrorMode) {
                 val sourceConfig = kotlin.runCatching {
-                    Json.decodeFromStream<Config>(Path(config.mirrorFrom!!, "config", "x-backup.config.json").inputStream())
+                    Json.decodeFromStream<Config>(
+                        Path(
+                            config.mirrorFrom!!,
+                            "config",
+                            "x-backup.config.json"
+                        ).inputStream()
+                    )
                 }.getOrNull()
                 if (sourceConfig == null) {
                     log.error("Failed to load config from source server!")
@@ -158,15 +171,33 @@ object XBackup : ModInitializer {
                 )
             }
             else {
-                service = BackupDatabaseService(database, Path("").absolute().resolve(config.blobPath).normalize(), config)
+                service =
+                    BackupDatabaseService(database, Path("").absolute().resolve(config.blobPath).normalize(), config)
             }
             XBackupApi.setInstance(service)
             if (config.cloudBackupToken != null) {
-                val httpClient = HttpClient {
+                val httpClient = HttpClient(Apache5) {
+                    engine {
+                        followRedirects = true
+                        socketTimeout = 20_000
+                        connectTimeout = 20_000
+                        connectionRequestTimeout = 20_000
+                        customizeClient {
+
+                        }
+                        customizeRequest {
+                        }
+                    }
+
                     install(ContentNegotiation) {
                         json(this@XBackup.json)
                     }
                     install(HttpRedirect)
+                    install(HttpTimeout) {
+                        requestTimeoutMillis = 60_000
+                        connectTimeoutMillis = 60_000
+                        socketTimeoutMillis = 60_000
+                    }
                     install(UserAgent) {
                         agent = "XBackup/$MOD_VERSION RedenMC/0.1-x-backup"
                     }
@@ -311,7 +342,11 @@ object XBackup : ModInitializer {
         return count
     }
 
-    fun ensureNotBusy(context: CoroutineContext = server.asCoroutineDispatcher(), block: suspend () -> Unit) {
+    fun ensureNotBusy(
+        context: CoroutineContext = server.asCoroutineDispatcher(),
+        source: ServerCommandSource? = null,
+        block: suspend () -> Unit
+    ) {
         require(server.isOnThread)
         if (isBusy) {
             throw SimpleCommandExceptionType(Text.of("Backup is already running")).create()
@@ -320,7 +355,12 @@ object XBackup : ModInitializer {
         service.launch(context) {
             try {
                 block()
-            } finally {
+            }
+            catch (e: Throwable) {
+                log.error("Error running X Backup task", e)
+                source?.sendError(Text.of("Error running X Backup task: ${e.message}"))
+            }
+            finally {
                 isBusy = false
             }
         }

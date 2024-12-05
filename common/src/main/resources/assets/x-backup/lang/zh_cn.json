@@ -1,5 +1,6 @@
 {
   "command.xb.background_task_status": "后台任务状态: %s",
+  "command.xb.backup_already_uploaded": "备份 %s 已上传到云存储。",
   "command.xb.backup_corrupted": "备份 %s 已损坏",
   "command.xb.backup_corrupted.force": "备份 %s 已损坏，你可以使用 --force 选项强制回档，存档可能损坏！",
   "command.xb.backup_deleted": "备份 %s 已删除",

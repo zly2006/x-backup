@@ -28,6 +28,6 @@
   "depends": {
     "fabricloader": ">=0.15",
     "minecraft": "${mcdep}",
-    "fabric-language-kotlin": "*"
+    "fabric-language-kotlin": ">=1.12"
   }
 }
