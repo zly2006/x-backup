@@ -2,35 +2,36 @@ package com.github.zly2006.xbackup
 
 import com.github.zly2006.xbackup.api.CloudStorageProvider
 import com.github.zly2006.xbackup.api.XBackupKotlinAsyncApi
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.ResponseBody
 import org.jetbrains.exposed.sql.update
 import java.io.InputStream
+import kotlin.io.path.readBytes
+
+private const val prefix = "/Apps/xb.2"
 
 class OnedriveSupport(
     private val config: Config,
-    private val httpClient: OkHttpClient
-) : CloudStorageProvider {
+    private val httpClient: HttpClient
+): CloudStorageProvider {
     private var tokenExpires = 0L
     private var token = ""
 
-    private fun getOneDriveToken(): String {
+    private suspend fun getOneDriveToken(): String {
         if (tokenExpires < System.currentTimeMillis()) {
-            val response = httpClient.newCall(
-                Request.Builder().apply {
-                    url("https://redenmc.com/api/backup/onedrive")
-                    header("Authorization", "Bearer ${config.cloudBackupToken}")
-                }.build()
-            ).execute().body!!.string()
+            val response = httpClient.get("https://redenmc.com/api/backup/onedrive") {
+                header("Authorization", "Bearer ${config.cloudBackupToken}")
+            }.bodyAsText()
             tokenExpires = System.currentTimeMillis() + 60_000
             token = response
             return response
@@ -38,6 +39,7 @@ class OnedriveSupport(
         return token
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     override suspend fun uploadBackup(service: XBackupKotlinAsyncApi, id: Int) {
         val backup = requireNotNull(service.getBackup(id)) {
             "Backup not found"
@@ -53,13 +55,10 @@ class OnedriveSupport(
                 GlobalScope.async {
                     retry(5) {
                         val token = getOneDriveToken()
-                        httpClient.newCall(
-                            Request.Builder().apply {
-                                url("https://graph.microsoft.com/v1.0/me/drive/root:/Apps/xb/${entry.hash}")
-                                header("Authorization", "Bearer $token")
-                            }.build()
-                        ).execute().use { response ->
-                            if (response.isSuccessful) {
+                        httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/${entry.hash}") {
+                            header("Authorization", "Bearer $token")
+                        }.let { response ->
+                            if (response.status.isSuccess()) {
                                 service.syncDbQuery {
                                     BackupDatabaseService.BackupEntryTable.update({
                                         BackupDatabaseService.BackupEntryTable.id eq entry.id
@@ -71,24 +70,21 @@ class OnedriveSupport(
                                 done++
                                 return@retry
                             }
-                            else if (response.code == 404) {
+                            else if (response.status.value == 404) {
                                 log.info("Uploading $entry")
                             }
                             else {
-                                throw IllegalStateException("Upload failed $entry: ${response.body!!.string()}")
+                                throw IllegalStateException("Upload failed $entry: ${response.bodyAsText()}")
                             }
                         }
-                        httpClient.newCall(
-                            Request.Builder().apply {
-                                url("https://graph.microsoft.com/v1.0/me/drive/root:/Apps/xb/${entry.hash}:/content")
-                                header("Authorization", "Bearer $token")
-                                header("Content-Type", "application/octet-stream")
-                                header("Content-Length", entry.zippedSize.toString())
-                                put(entry.getInputStream(service)!!.readBytes().toRequestBody())
-                            }.build()
-                        ).execute().use { response ->
-                            if (!response.isSuccessful) {
-                                throw IllegalStateException("Upload failed $entry: ${response.body!!.string()}")
+                        httpClient.put("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/${entry.hash}:/content") {
+                            header("Authorization", "Bearer $token")
+                            header("Content-Type", "application/octet-stream")
+                            header("Content-Length", entry.zippedSize.toString())
+                            setBody(service.getBlobFile(entry.hash).readBytes())
+                        }.let { response ->
+                            if (!response.status.isSuccess()) {
+                                throw IllegalStateException("Upload failed $entry: ${response.bodyAsText()}")
                             }
                             service.syncDbQuery {
                                 BackupDatabaseService.BackupEntryTable.update({
@@ -99,17 +95,14 @@ class OnedriveSupport(
                             }
                             log.info("Uploaded $entry")
                         }
-                        httpClient.newCall(
-                            Request.Builder().apply {
-                                url("https://graph.microsoft.com/v1.0/me/drive/root:/Apps/xb/${entry.hash}")
-                                header("Authorization", "Bearer $token")
-                            }.build()
-                        ).execute().use { response ->
-                            if (!response.isSuccessful) {
-                                error("Upload failed $entry: ${response.body!!.string()}")
+                        httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/${entry.hash}") {
+                            header("Authorization", "Bearer $token")
+                        }.let { response ->
+                            if (!response.status.isSuccess()) {
+                                error("Upload failed $entry: ${response.bodyAsText()}")
                             }
-                            val cloudDriveSize = response.body!!.json()["size"]?.jsonPrimitive?.long
-                            require(cloudDriveSize == entry.zippedSize || cloudDriveSize == entry.size) {
+                            val cloudDriveSize = response.body<JsonObject>()["size"]?.jsonPrimitive?.long
+                            require(cloudDriveSize == entry.zippedSize) {
                                 "Uploaded size mismatch: $entry, expected: ${entry.zippedSize}, actual: $cloudDriveSize, raw: ${entry.size}"
                             }
                         }
@@ -129,27 +122,19 @@ class OnedriveSupport(
         return retry(5) {
             val token = getOneDriveToken()
 
-            httpClient.newCall(
-                Request.Builder().apply {
-                    url("https://graph.microsoft.com/v1.0/me/drive/root:/Apps/xb/$hash")
-                    header("Authorization", "Bearer $token")
-                }.build()
-            ).execute().use { response ->
-                log.info("Downloading $hash, size: ${response.body!!.json()["size"]?.jsonPrimitive?.long}")
+            httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/$hash") {
+                header("Authorization", "Bearer $token")
+            }.let { response ->
+                log.info("Downloading $hash, size: ${response.body<JsonObject>()["size"]?.jsonPrimitive?.long}")
             }
-            httpClient.newCall(
-                Request.Builder().apply {
-                    url("https://graph.microsoft.com/v1.0/me/drive/root:/Apps/xb/$hash:/content")
-                    header("Authorization", "Bearer $token")
-                }.build()
-            ).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw IllegalStateException("Download failed: ${response.body!!.string()}")
+            httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/$hash:/content") {
+                header("Authorization", "Bearer $token")
+            }.let { response ->
+                if (!response.status.isSuccess()) {
+                    throw IllegalStateException("Download failed: ${response.bodyAsText()}")
                 }
-                response.body!!.bytes().inputStream()
+                response.readBytes().inputStream()
             }
         }
     }
 }
-
-private fun ResponseBody.json() = Json.decodeFromString<JsonObject>(string())

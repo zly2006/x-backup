@@ -450,13 +450,11 @@ object Commands {
                         argument("id", IntegerArgumentType.integer(1)).executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             val backup = getBackup(id)
-                            try {
+                            XBackup.ensureNotBusy {
                                 val total = backup.entries.count { !it.isDirectory }
                                 var downloaded = 0
                                 backup.entries.filter { !it.isDirectory }.forEach {
-                                    runBlocking {
-                                        it.getInputStream(XBackup.service)
-                                    }
+                                    it.getInputStreamInternal(XBackup.service)
                                     require(XBackup.service.getBlobFile(it.hash).fileSize() == it.zippedSize) {
                                         "$it is not fully uploaded"
                                     }
@@ -465,10 +463,8 @@ object Commands {
                                 }
                                 it.source.send(Text.keybind("Debug: Downloaded backup $id"))
                                 1
-                            } catch (e: Throwable) {
-                                log.error("Error while downloading backup $id", e)
-                                0
                             }
+                            1
                         }
                     }
                     literal("export") {

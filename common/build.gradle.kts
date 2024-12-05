@@ -29,19 +29,17 @@ dependencies {
     sharedLib("org.jetbrains.exposed:exposed-json:$exposed_version")
     sharedLib("org.xerial:sqlite-jdbc:3.46.0.0")
     sharedLib("org.apache.commons:commons-compress:1.26.0")
-//    include(implementation("com.squareup.okio:okio-jvm:3.2.0")!!)
-    sharedLib("com.squareup.okhttp3:okhttp:4.12.0")
+    val ktor_version = property("deps.ktor_version") as String
+    sharedLib("io.ktor:ktor-client-content-negotiation-jvm:$ktor_version")
+    sharedLib("io.ktor:ktor-client-core-jvm:$ktor_version")
+    sharedLib("io.ktor:ktor-client-apache5:$ktor_version")
+    sharedLib("io.ktor:ktor-serialization-kotlinx-json-jvm:$ktor_version")
     sharedLib(project(":api"))
     // kotlin
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.0")
     api("org.jetbrains.kotlinx:atomicfu:0.26.0")
-
-
-    api("com.google.guava:guava:31.1-jre")
-    api("com.azure:azure-identity:1.10.0")
-    api("com.microsoft.graph:microsoft-graph:5.75.0")
 }
 
 tasks {

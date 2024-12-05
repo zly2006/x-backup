@@ -3,6 +3,10 @@ package com.github.zly2006.xbackup
 import com.github.zly2006.xbackup.Utils.broadcast
 import com.github.zly2006.xbackup.api.XBackupApi
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
+import io.ktor.client.*
+import io.ktor.client.plugins.*
+import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
@@ -16,8 +20,6 @@ import net.minecraft.server.MinecraftServer
 import net.minecraft.text.Text
 import net.minecraft.util.Util
 import net.minecraft.util.WorldSavePath
-import okhttp3.OkHttpClient
-import okhttp3.internal.userAgent
 import org.jetbrains.exposed.sql.Database
 import org.slf4j.LoggerFactory
 import org.sqlite.SQLiteConfig
@@ -75,7 +77,7 @@ object XBackup : ModInitializer {
     }
 
     @OptIn(ExperimentalSerializationApi::class)
-    private val json = Json {
+    val json = Json {
         encodeDefaults = true
         prettyPrint = true
         allowTrailingComma = true
@@ -160,14 +162,18 @@ object XBackup : ModInitializer {
             }
             XBackupApi.setInstance(service)
             if (config.cloudBackupToken != null) {
-                val httpClient = OkHttpClient.Builder().apply {
-                    this.addInterceptor {
-                        val request = it.request().newBuilder()
-                            .header("User-Agent", "XBackup/$MOD_VERSION RedenMC/0.1-x-backup $userAgent")
-                            .build()
-                        it.proceed(request)
+                val httpClient = HttpClient {
+                    install(ContentNegotiation) {
+                        json(this@XBackup.json)
                     }
-                }.build()
+                    install(HttpRedirect)
+                    install(UserAgent) {
+                        agent = "XBackup/$MOD_VERSION RedenMC/0.1-x-backup"
+                    }
+                    install(HttpRequestRetry) {
+                        retryOnServerErrors(1)
+                    }
+                }
                 service.oneDriveService = OnedriveSupport(config, httpClient)
             }
             if (!config.mirrorMode) {

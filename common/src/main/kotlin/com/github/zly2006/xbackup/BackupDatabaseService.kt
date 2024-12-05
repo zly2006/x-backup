@@ -9,7 +9,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okio.use
 import org.jetbrains.annotations.ApiStatus.ScheduledForRemoval
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
@@ -156,21 +155,8 @@ class BackupDatabaseService(
                         }
                     }
                     log.info("Downloaded blob $hash")
-                    if (blob.fileSize() == size) {
-                        log.warn("Gzipped file was unzipped unexpectedly, set it to non-zipped")
-                        service.syncDbQuery {
-                            _compress = 0
-                            _zippedSize = size
-                            BackupEntryTable.update({ BackupEntryTable.id eq this@BackupEntry.id }) {
-                                it[compress] = 0
-                                it[zippedSize] = size
-                            }
-                        }
-                    }
-                    else {
-                        require(blob.fileSize() == zippedSize) {
-                            "Downloaded blob $hash size mismatch: expected: $zippedSize, actual: ${blob.fileSize()}"
-                        }
+                    require(blob.fileSize() == zippedSize) {
+                        "Downloaded blob $hash size mismatch: expected: $zippedSize, actual: ${blob.fileSize()}"
                     }
                 } catch (e: IOException) {
                     log.error("Error downloading blob $hash", e)
@@ -351,21 +337,19 @@ class BackupDatabaseService(
                                 error("File hash mismatch when creating backup, file: $path, expected: $md5")
                             }
                         }
-                        withContext(syncExecutor) {
-                            dbQuery {
-                                val backupEntry = BackupEntryTable.insert {
-                                    it[this.path] = path.toString()
-                                    it[this.size] = sourceFile.length()
-                                    it[this.lastModified] = sourceFile.lastModified()
-                                    it[this.isDirectory] = sourceFile.isDirectory
-                                    it[this.hash] = md5
-                                    it[this.zippedSize] = zippedSize
-                                    it[this.gzip] = false
-                                    it[this.compress] = if (gzip) 1 else 0
-                                }.resultedValues!!.single().toBackupEntry()
-                                newEntries.add(backupEntry)
-                                backupEntry
-                            }
+                        syncDbQuery {
+                            val backupEntry = BackupEntryTable.insert {
+                                it[this.path] = path.toString()
+                                it[this.size] = sourceFile.length()
+                                it[this.lastModified] = sourceFile.lastModified()
+                                it[this.isDirectory] = sourceFile.isDirectory
+                                it[this.hash] = md5
+                                it[this.zippedSize] = zippedSize
+                                it[this.gzip] = false
+                                it[this.compress] = if (gzip) 1 else 0
+                            }.resultedValues!!.single().toBackupEntry()
+                            newEntries.add(backupEntry)
+                            backupEntry
                         }
                     } catch (e: IOException) {
                         throw IOException("Error backing up file: $sourceFile", e)
