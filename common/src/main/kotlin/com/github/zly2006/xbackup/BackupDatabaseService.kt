@@ -401,7 +401,7 @@ class BackupDatabaseService(
         )
     }
 
-    suspend fun deleteBackup(backup: Backup) {
+    suspend fun deleteBackup(backup: IBackup) {
         dbQuery {
             backup.entries.forEach { entry ->
                 if (BackupEntryBackupTable.selectAll().where {
@@ -411,11 +411,11 @@ class BackupDatabaseService(
                 ) {
                     getBlobFile(entry.hash).toFile().delete()
                     BackupEntryTable.deleteWhere {
-                        BackupEntryTable.id eq entry.id
+                        id eq entry.id
                     }
                 }
             }
-            BackupTable.deleteWhere { BackupTable.id eq backup.id }
+            BackupTable.deleteWhere { id eq backup.id }
         }
     }
 
@@ -423,7 +423,7 @@ class BackupDatabaseService(
         return blobDir.resolve(hash.take(2)).resolve(hash.drop(2)).createParentDirectories()
     }
 
-    suspend fun getBackupInternal(id: Int): Backup? = dbQuery {
+    internal suspend fun getBackupInternal(id: Int): Backup? = dbQuery {
         BackupTable.selectAll().where { BackupTable.id eq id }.firstOrNull()?.toBackup()
     }
 
@@ -551,7 +551,7 @@ class BackupDatabaseService(
 
             blobs.forEach {
                 require(it.compress != 2) { "already packed" }
-                val entry = zip.putNextEntry(
+                zip.putNextEntry(
                     ZipEntry(it.path.replace('\\', '/').trim('/')).apply {
                         creationTime = FileTime.fromMillis(it.lastModified)
                         lastModifiedTime = FileTime.fromMillis(it.lastModified)
@@ -583,19 +583,40 @@ class BackupDatabaseService(
         dbQuery {
             val entryList = backup.entries.filter {
                 !it.isDirectory && it.size < 1024 * 1024 * 50 // 50MB
+                        && BackupEntryBackupTable.selectAll().where {
+                    BackupEntryBackupTable.entry eq it.id and
+                            (BackupEntryBackupTable.backup neq backup.id)
+                }.empty()
             }
             if (entryList.size < 10) return@dbQuery
             val packed = packFiles(entryList)
             val blobSize = getBlobFile(packed).fileSize()
-            entryList.forEach {
-                dbQuery {
-                    BackupEntryTable.update({ BackupEntryTable.id eq it.id }) {
-                        it[compress] = 2
-                        it[cloudDriveId] = 0
-                        it[hash] = packed
-                        it[zippedSize] = blobSize
-                    }
+            syncDbQuery {
+                val ids = entryList.map { it.id }
+                BackupEntryTable.update({ BackupEntryTable.id inList ids }) {
+                    it[compress] = 2
+                    it[cloudDriveId] = 0
+                    it[hash] = packed
+                    it[zippedSize] = blobSize
                 }
+            }
+        }
+    }
+
+    fun zipArchive(outputStream: ZipOutputStream, backup: IBackup) {
+        backup.entries.forEach {
+            if (!it.isDirectory) {
+                outputStream.putNextEntry(ZipEntry(it.path).apply {
+                    comment = buildJsonObject {
+                        put("hash", it.hash)
+                        put("cloud", it.cloudDriveId)
+                    }.toString()
+                })
+                val input = requireNotNull(it.getInputStream(this)) {
+                    "Blob not found for file ${it.path}, hash: ${it.hash}"
+                }
+                input.copyTo(outputStream)
+                input.close()
             }
         }
     }

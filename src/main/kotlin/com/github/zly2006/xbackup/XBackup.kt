@@ -64,7 +64,7 @@ object XBackup : ModInitializer {
     var disableWatchdog = false
 
     enum class BackgroundState {
-        IDLE, UNKNOWN, SCHEDULED_BACKUP, PRUNING
+        IDLE, UNKNOWN, SCHEDULED_BACKUP, PRUNING, STOPPED
     }
 
     var backgroundState = BackgroundState.UNKNOWN
@@ -212,7 +212,10 @@ object XBackup : ModInitializer {
                 GlobalScope.launch(server.asCoroutineDispatcher()) {
                     while (XBackup.server.running) {
                         delay(1000)
-                        if (service.activeTaskProgress != -1) {
+                        val cs = service.cloudStorageProvider
+                        if (service.activeTaskProgress != -1 &&
+                            (cs.bytesSentLastSecond > 0 || cs.bytesReceivedLastSecond > 0)
+                        ) {
                             runCatching {
                                 server.playerManager.sendToAll(
                                     PlayerListHeaderS2CPacket(
@@ -315,6 +318,10 @@ object XBackup : ModInitializer {
                     }
                 }
             }
+        }.apply {
+            invokeOnCompletion {
+                backgroundState = BackgroundState.STOPPED
+            }
         }
     }
 
@@ -341,7 +348,7 @@ object XBackup : ModInitializer {
                         return@forEach
                     }
                     server.broadcast(Utils.translate("message.xb.pruning_backup", it))
-                    service.deleteBackup(service.getBackupInternal(it.toInt())!!)
+                    service.deleteBackup(service.getBackup(it.toInt())!!)
                     count++
                 }
                 server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))

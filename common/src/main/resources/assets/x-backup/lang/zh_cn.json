@@ -39,13 +39,12 @@
   "message.xb.running_scheduled_backup": "正在运行定时备份，请稍候...",
   "message.xb.scheduled_backup": "定时备份",
   "message.xb.scheduled_backup_finished": "定时备份 %s 完成, %s (压缩后 %s) +%s 用时 %s 毫秒",
-
-  "xb.gui.backups.title" : "备份列表",
-  "xb.gui.backups.restored" : "成功还原备份",
-  "xb.button.backups" : "世界备份",
-  "xb.gui.no_polylib": "未安装 PolyLib，请安装后使用 GUI 功能。",
-  "xb.button.restore_backup" : "还原备份",
-  "xb.button.delete_backup" : "删除备份",
-  "xb.button.backups_entry" : "管理备份",
-  "xb.button.back_arrow" : "← 返回"
+  "xb.button.back_arrow": "← 返回",
+  "xb.button.backups": "世界备份",
+  "xb.button.backups_entry": "管理备份",
+  "xb.button.delete_backup": "删除备份",
+  "xb.button.restore_backup": "还原备份",
+  "xb.gui.backups.restored": "成功还原备份",
+  "xb.gui.backups.title": "备份列表",
+  "xb.gui.no_polylib": "未安装 PolyLib，请安装后使用 GUI 功能。"
 }

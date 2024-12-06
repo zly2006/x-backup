@@ -5,6 +5,7 @@ import com.github.zly2006.xbackup.Utils.finishRestore
 import com.github.zly2006.xbackup.Utils.save
 import com.github.zly2006.xbackup.Utils.send
 import com.github.zly2006.xbackup.Utils.setAutoSaving
+import com.github.zly2006.xbackup.api.IBackup
 import com.github.zly2006.xbackup.ktdsl.register
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
@@ -30,6 +31,7 @@ import net.minecraft.util.WorldSavePath
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.zip.ZipOutputStream
 import kotlin.io.path.*
 import kotlin.math.max
 import kotlin.math.min
@@ -104,10 +106,8 @@ object Commands {
         }
     }
 
-    private fun getBackup(id: Int): BackupDatabaseService.Backup {
-        return runBlocking {
-            XBackup.service.getBackupInternal(id)
-        } ?: throw SimpleCommandExceptionType(
+    private fun getBackup(id: Int): IBackup {
+        return XBackup.service.getBackup(id) ?: throw SimpleCommandExceptionType(
             Utils.translate("command.xb.backup_not_found", backupIdText(id))
         ).create()
     }
@@ -354,6 +354,7 @@ object Commands {
                     requires = checkPermission("x_backup.restore", 0)
                     argument("id", IntegerArgumentType.integer(1)) {
                         literal("--chunk") {
+                            requires = checkPermission("x_backup.restore.regional", 4)
                             argument("from", ColumnPosArgumentType.columnPos()) {
                                 argument("to", ColumnPosArgumentType.columnPos()).executes {
                                     val id = IntegerArgumentType.getInteger(it, "id")
@@ -405,12 +406,15 @@ object Commands {
                             doRestore(backup, it, path, forceStop = true)
                             1
                         }
-                        literal("--force").executes {
-                            val id = IntegerArgumentType.getInteger(it, "id")
-                            val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                            val backup = getBackup(id)
-                            doRestore(backup, it, path, recheck = false)
-                            1
+                        literal("--force") {
+                            requires = checkPermission("x_backup.restore.force", 4)
+                            executes {
+                                val id = IntegerArgumentType.getInteger(it, "id")
+                                val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+                                val backup = getBackup(id)
+                                doRestore(backup, it, path, recheck = false)
+                                1
+                            }
                         }
                     }.executes {
                         val id = IntegerArgumentType.getInteger(it, "id")
@@ -463,7 +467,7 @@ object Commands {
                                 val total = backup.entries.count { !it.isDirectory }
                                 var downloaded = 0
                                 backup.entries.filter { !it.isDirectory }.forEach {
-                                    it.getInputStreamInternal(XBackup.service)
+                                    it.getInputStream(XBackup.service)
                                     require(XBackup.service.getBlobFile(it.hash).fileSize() == it.zippedSize) {
                                         "$it is not fully uploaded"
                                     }
@@ -542,6 +546,21 @@ object Commands {
                         it.source.send(Text.literal("Stopped crontab job"))
                         1
                     }
+                    literal("zip") {
+                        argument("id", IntegerArgumentType.integer(1)).executes {
+                            val id = IntegerArgumentType.getInteger(it, "id")
+                            val backup = getBackup(id)
+                            XBackup.ensureNotBusy {
+                                it.source.send(Utils.translate("command.xb.zipping_backup", backupIdText(id)))
+                                val file = Path("export").resolve("backup-$id.zip").createParentDirectories()
+                                ZipOutputStream(file.outputStream()).use { stream ->
+                                    XBackup.service.zipArchive(stream, backup)
+                                }
+                                it.source.send(Utils.translate("command.xb.backup_zipped", backupIdText(id)))
+                            }
+                            1
+                        }
+                    }
                 }
                 literal("backup-interval") {
                     argument("seconds", IntegerArgumentType.integer()) {
@@ -572,7 +591,7 @@ object Commands {
     }
 
     private fun doRestore(
-        backup: BackupDatabaseService.Backup,
+        backup: IBackup,
         it: CommandContext<ServerCommandSource>,
         path: Path,
         forceStop: Boolean = false,
@@ -604,7 +623,7 @@ object Commands {
             Dispatchers.IO // single player servers will stop when players exit, so we cant use the main thread
         ) {
             XBackup.restoring = true
-            XBackup.serverStopHook = {
+            XBackup.serverStopHook = a@{
                 try {
                     XBackup.serverStopHook = {}
                     runBlocking {
@@ -614,6 +633,7 @@ object Commands {
                     }
                 } catch (e: Throwable) {
                     XBackup.log.error("[X Backup] Error while restoring backup #${backup.id}", e)
+                    return@a
                 } finally {
                     if (!forceStop && !it.isSingleplayer) {
                         // restart the server

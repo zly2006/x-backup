@@ -9,6 +9,7 @@ import io.ktor.client.plugins.onUpload
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.util.cio.readChannel
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -17,14 +18,23 @@ import kotlinx.coroutines.async
 import kotlin.random.Random
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.future.future
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.jetbrains.exposed.sql.update
 import java.io.InputStream
+import java.util.zip.ZipOutputStream
+import kotlin.io.path.Path
+import kotlin.io.path.createParentDirectories
+import kotlin.io.path.fileSize
+import kotlin.io.path.outputStream
 import kotlin.io.path.readBytes
 
 private const val prefix = "/Apps/xb.2"
@@ -72,87 +82,48 @@ class OnedriveSupport(
         getOneDriveToken()
 
         service.activeTask = "Uploading to OneDrive"
-        val tasks = backup.entries.filter {
-            !it.isDirectory && it.cloudDriveId == null && it.getInputStream(service) != null
-        }
-        var done = 0
         val semaphore = Semaphore(4) // Limit to 4 concurrent uploads
-        try {
-            tasks.map { entry ->
-                GlobalScope.async(Dispatchers.Default.limitedParallelism(4, "X-Backup-Uploader")) {
-                    semaphore.withPermit {
-                        retry(5) {
-                            val token = getOneDriveToken()
-                            httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/${entry.hash}") {
-                                header("Authorization", "Bearer $token")
-                            }.let { response ->
-                                if (response.status.isSuccess()) {
-                                    service.syncDbQuery {
-                                        BackupDatabaseService.BackupEntryTable.update({
-                                            BackupDatabaseService.BackupEntryTable.id eq entry.id
-                                        }) {
-                                            it[this.cloudDriveId] = 1
-                                        }
-                                    }
-                                    log.info("File already exists in cloud: $entry")
-                                    done++
-                                    return@retry
-                                }
-                                else if (response.status.value == 404) {
-                                    log.info("Uploading $entry")
-                                }
-                                else if (response.status.value == 429) {
-                                    delay(Random.nextLong(5000, 15000))
-                                }
-                                else {
-                                    throw IllegalStateException("Upload failed $entry: ${response.status} ${response.bodyAsText()}")
-                                }
-                            }
-                            httpClient.put("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/${entry.hash}:/content") {
-                                header("Authorization", "Bearer $token")
-                                header("Content-Type", "application/octet-stream")
-                                header("Content-Length", entry.zippedSize.toString())
-                                setBody(service.getBlobFile(entry.hash).readBytes())
-
-                                var lastSent = 0L
-                                onUpload { bytesSentTotal, contentLength ->
-                                    sentBytes.addAndGet(bytesSentTotal - lastSent)
-                                    lastSent = bytesSentTotal
-                                }
-                            }.let { response ->
-                                if (!response.status.isSuccess()) {
-                                    throw IllegalStateException("Upload failed $entry: ${response.status} ${response.bodyAsText()}")
-                                }
-                                service.syncDbQuery {
-                                    BackupDatabaseService.BackupEntryTable.update({
-                                        BackupDatabaseService.BackupEntryTable.id eq entry.id
-                                    }) {
-                                        it[this.cloudDriveId] = 1
-                                    }
-                                }
-                                log.info("Uploaded $entry")
-                            }
-                            httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/${entry.hash}") {
-                                header("Authorization", "Bearer $token")
-                            }.let { response ->
-                                if (!response.status.isSuccess()) {
-                                    error("Upload failed $entry: ${response.bodyAsText()}")
-                                }
-                                val cloudDriveSize = response.body<JsonObject>()["size"]?.jsonPrimitive?.long
-                                require(cloudDriveSize == entry.zippedSize) {
-                                    "Uploaded size mismatch: $entry, expected: ${entry.zippedSize}, actual: $cloudDriveSize, raw: ${entry.size}"
-                                }
-                            }
-                            done++
-                            service.activeTaskProgress = done * 100 / tasks.size
-                        }
+        val file = Path(".tmp", "xb.upload.zip").createParentDirectories()
+        service as BackupDatabaseService
+        ZipOutputStream(file.outputStream()).use { stream ->
+            service.zipArchive(stream, service.getBackup(id)!!)
+        }
+        // multi thread uploading, using semaphore to limit the number of concurrent uploads
+        val fileSize = file.fileSize()
+        val STEP = 10 * 1024 * 1024L
+        // get item-id
+        val item = httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix") {
+            header("Authorization", "Bearer $token")
+        }.body<JsonObject>()
+        if (item["id"] == null) {
+            throw IllegalStateException("Failed to get item-id")
+        }
+        val folderId = item["id"]!!.jsonPrimitive.content
+        log.info("Folder id: $folderId")
+        val uploadSession = httpClient.post("https://graph.microsoft.com/v1.0/me/drive/items/$folderId/createUploadSession") {
+            header("Authorization", "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(
+                buildJsonObject {
+                    putJsonObject("item") {
+                        put("@odata.type", "microsoft.graph.driveItemUploadableProperties")
+                        put("@microsoft.graph.conflictBehavior", "rename")
+                        put("name", "xb.upload.backup-${backup.id}.zip")
                     }
                 }
-            }.awaitAll()
-        } catch (e: Throwable) {
-            log.error("Error in upload", e)
-            service.activeTask = "Error: Upload to OneDrive failed"
-            service.activeTaskProgress = -400
+            )
+        }.let { response ->
+            println(response.status)
+            response.body<JsonObject>()
+        }
+        println(uploadSession)
+        val tasks = (0 until fileSize step STEP).map { start ->
+            GlobalScope.async(Dispatchers.IO) {
+                semaphore.withPermit {
+                    val end = minOf(start + STEP, fileSize)
+                    val part = file.readChannel(start, end)
+                }
+            }
         }
     }
 
