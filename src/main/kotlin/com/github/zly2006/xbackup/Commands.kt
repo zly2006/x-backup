@@ -655,6 +655,7 @@ object Commands {
 
     private fun checkPermission(perm: String, defaultLevel: Int = 2): (ServerCommandSource) -> Boolean = { source ->
         try {
+            source.hasPermissionLevel(defaultLevel)
             // Call fabric-permissions API, but it might not be available
             Permissions.check(source, perm, defaultLevel)
         } catch (e: NoClassDefFoundError) {

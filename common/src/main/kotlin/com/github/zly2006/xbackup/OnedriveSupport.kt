@@ -99,17 +99,15 @@ class OnedriveSupport(
             throw IllegalStateException("Failed to get item-id")
         }
         val folderId = item["id"]!!.jsonPrimitive.content
+        val filename = "xb.upload.backup-${backup.id}.zip"
         log.info("Folder id: $folderId")
-        val uploadSession = httpClient.post("https://graph.microsoft.com/v1.0/me/drive/items/$folderId/createUploadSession") {
+        val uploadSession = httpClient.post("https://graph.microsoft.com/v1.0/me/drive/items/$folderId:/$filename:/createUploadSession") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(
                 buildJsonObject {
-                    putJsonObject("item") {
-                        put("@odata.type", "microsoft.graph.driveItemUploadableProperties")
-                        put("@microsoft.graph.conflictBehavior", "rename")
-                        put("name", "xb.upload.backup-${backup.id}.zip")
-                    }
+                    put("@microsoft.graph.conflictBehavior", "rename")
+                    put("name", filename)
                 }
             )
         }.let { response ->
@@ -120,8 +118,26 @@ class OnedriveSupport(
         val tasks = (0 until fileSize step STEP).map { start ->
             GlobalScope.async(Dispatchers.IO) {
                 semaphore.withPermit {
-                    val end = minOf(start + STEP, fileSize)
-                    val part = file.readChannel(start, end)
+                    val endInclusive = minOf(start + STEP, fileSize) - 1
+                    val part = file.readChannel(start, endInclusive)
+                    val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
+                    retry(5) {
+                        httpClient.put(uploadUrl) {
+                            header("Content-Range", "bytes $start-$endInclusive/$fileSize")
+                            header("Authorization", "Bearer $token")
+                            header("Content-Length", (endInclusive - start + 1).toString())
+                            var lastSent = 0L
+                            onUpload { bytesSentTotal, contentLength ->
+                                sentBytes.addAndGet(bytesSentTotal - lastSent)
+                                lastSent = bytesSentTotal
+                            }
+                            setBody(part)
+                        }.let { response ->
+                            if (!response.status.isSuccess()) {
+                                throw IllegalStateException("Upload failed: ${response.status} ${response.bodyAsText()}")
+                            }
+                        }
+                    }
                 }
             }
         }
