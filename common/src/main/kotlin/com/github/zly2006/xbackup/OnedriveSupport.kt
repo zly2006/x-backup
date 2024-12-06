@@ -4,9 +4,12 @@ import com.github.zly2006.xbackup.api.CloudStorageProvider
 import com.github.zly2006.xbackup.api.XBackupKotlinAsyncApi
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.onDownload
+import io.ktor.client.plugins.onUpload
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -14,6 +17,7 @@ import kotlinx.coroutines.async
 import kotlin.random.Random
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonObject
@@ -31,6 +35,21 @@ class OnedriveSupport(
 ): CloudStorageProvider {
     private var tokenExpires = 0L
     private var token = ""
+    private val receivedBytes = atomic(0L)
+    private val sentBytes = atomic(0L)
+    override var bytesReceivedLastSecond = 0L
+    override var bytesSentLastSecond = 0L
+    private val job = GlobalScope.launch {
+        while (true) {
+            delay(1000)
+            bytesReceivedLastSecond = receivedBytes.getAndSet(0)
+            bytesSentLastSecond = sentBytes.getAndSet(0)
+        }
+    }
+
+    init {
+        job.invokeOnCompletion { cause -> log.info("Network stats tracker stopped", cause) }
+    }
 
     private suspend fun getOneDriveToken(): String {
         if (tokenExpires < System.currentTimeMillis()) {
@@ -94,6 +113,12 @@ class OnedriveSupport(
                                 header("Content-Type", "application/octet-stream")
                                 header("Content-Length", entry.zippedSize.toString())
                                 setBody(service.getBlobFile(entry.hash).readBytes())
+
+                                var lastSent = 0L
+                                onUpload { bytesSentTotal, contentLength ->
+                                    sentBytes.addAndGet(bytesSentTotal - lastSent)
+                                    lastSent = bytesSentTotal
+                                }
                             }.let { response ->
                                 if (!response.status.isSuccess()) {
                                     throw IllegalStateException("Upload failed $entry: ${response.status} ${response.bodyAsText()}")
@@ -147,6 +172,12 @@ class OnedriveSupport(
             }
             httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/$hash:/content") {
                 header("Authorization", "Bearer $token")
+
+                var lastReceived = 0L
+                onDownload { bytesSentTotal, contentLength ->
+                    receivedBytes.addAndGet(bytesSentTotal - lastReceived)
+                    lastReceived = bytesSentTotal
+                }
             }.let { response ->
                 if (!response.status.isSuccess()) {
                     throw IllegalStateException("Download failed: ${response.status} ${response.bodyAsText()}")

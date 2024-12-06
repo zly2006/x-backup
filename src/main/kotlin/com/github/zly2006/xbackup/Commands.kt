@@ -95,6 +95,15 @@ fun MutableText.clickRun(cmd: String) {
 }
 
 object Commands {
+    fun networkStatsText(): MutableText {
+        val cloudStorage = XBackup.service.cloudStorageProvider
+        return Text.empty().apply {
+            append(Text.literal("⏶" + sizeToString(cloudStorage.bytesSentLastSecond) + "/s"))
+            append(" ")
+            append(Text.literal("⏷" + sizeToString(cloudStorage.bytesReceivedLastSecond) + "/s"))
+        }
+    }
+
     private fun getBackup(id: Int): BackupDatabaseService.Backup {
         return runBlocking {
             XBackup.service.getBackupInternal(id)
@@ -115,6 +124,7 @@ object Commands {
                         it.source.send(Utils.translate("command.xb.background_task_status", XBackup.backgroundState.toString()))
                         if (XBackup.service.activeTaskProgress != -1) {
                             it.source.send(Text.literal("云备份任务：${XBackup.service.activeTask} ${XBackup.service.activeTaskProgress}%"))
+                            it.source.send(networkStatsText())
                         }
                         GlobalScope.launch(it.source.server.asCoroutineDispatcher()) {
                             val status = XBackup.service.status()

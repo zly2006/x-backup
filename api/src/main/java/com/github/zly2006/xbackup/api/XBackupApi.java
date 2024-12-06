@@ -1,5 +1,6 @@
 package com.github.zly2006.xbackup.api;
 
+import kotlin.LateinitKt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,4 +35,6 @@ public interface XBackupApi {
     int backupCount();
 
     void setCloudStorageProvider(@NotNull CloudStorageProvider provider);
+
+    @NotNull CloudStorageProvider getCloudStorageProvider();
 }

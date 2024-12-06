@@ -17,6 +17,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.client.MinecraftClient
+import net.minecraft.network.packet.s2c.play.PlayerListHeaderS2CPacket
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
@@ -38,9 +39,9 @@ object XBackup : ModInitializer {
     lateinit var config: Config
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
-    const val MOD_VERSION = /*$ mod_version*/ "0.3.4-pre.5"
-    const val GIT_COMMIT = /*$ git_commit*/ "9a47902"
-    const val COMMIT_DATE = /*$ commit_date*/ "2024-12-05T23:35:08+08:00"
+    const val MOD_VERSION = /*$ mod_version*/ "0.3.4-pre.7"
+    const val GIT_COMMIT = /*$ git_commit*/ "5b67e97"
+    const val COMMIT_DATE = /*$ commit_date*/ "2024-12-06T07:16:48+08:00"
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
 
@@ -205,9 +206,25 @@ object XBackup : ModInitializer {
                         retryOnServerErrors(1)
                     }
                 }
-                service.oneDriveService = OnedriveSupport(config, httpClient)
+                service.cloudStorageProvider = OnedriveSupport(config, httpClient)
             }
             if (!config.mirrorMode) {
+                GlobalScope.launch(server.asCoroutineDispatcher()) {
+                    while (XBackup.server.running) {
+                        delay(1000)
+                        if (service.activeTaskProgress != -1) {
+                            runCatching {
+                                server.playerManager.sendToAll(
+                                    PlayerListHeaderS2CPacket(
+                                        Text.empty(),
+                                        Text.literal("X Backup Network Stat\n")
+                                            .append(Commands.networkStatsText())
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
                 startCrontabJob(server)
             }
         }

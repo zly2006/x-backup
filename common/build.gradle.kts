@@ -29,11 +29,12 @@ dependencies {
     sharedLib("org.jetbrains.exposed:exposed-json:$exposed_version")
     sharedLib("org.xerial:sqlite-jdbc:3.46.0.0")
     sharedLib("org.apache.commons:commons-compress:1.26.0")
-    val ktor_version = property("deps.ktor_version") as String
-    sharedLib("io.ktor:ktor-client-content-negotiation-jvm:$ktor_version")
-    sharedLib("io.ktor:ktor-client-core-jvm:$ktor_version")
-    sharedLib("io.ktor:ktor-client-apache5:$ktor_version")
-    sharedLib("io.ktor:ktor-serialization-kotlinx-json-jvm:$ktor_version")
+    val ktorVersion = property("deps.ktor_version") as String
+    sharedLib("io.ktor:ktor-client-content-negotiation-jvm:$ktorVersion")
+    sharedLib("io.ktor:ktor-client-core-jvm:$ktorVersion")
+    sharedLib("io.ktor:ktor-client-cio:$ktorVersion")
+    sharedLib("io.ktor:ktor-client-apache5:$ktorVersion")
+    sharedLib("io.ktor:ktor-serialization-kotlinx-json-jvm:$ktorVersion")
     sharedLib(project(":api"))
     // kotlin
     api("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")

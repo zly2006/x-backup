@@ -64,10 +64,14 @@ class BackupDatabaseService(
         }
     }
 
-    lateinit var oneDriveService: CloudStorageProvider
+    private lateinit var oneDriveService: CloudStorageProvider
 
     override fun setCloudStorageProvider(provider: CloudStorageProvider) {
         oneDriveService = provider
+    }
+
+    override fun getCloudStorageProvider(): CloudStorageProvider {
+        return oneDriveService
     }
     
     private val ignoredFiles = setOf(
