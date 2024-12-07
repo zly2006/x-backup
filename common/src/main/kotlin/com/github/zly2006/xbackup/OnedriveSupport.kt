@@ -101,28 +101,32 @@ class OnedriveSupport(
                 }
             )
         }.body<JsonObject>()
-        val javaNetClient = java.net.http.HttpClient.newHttpClient()
+        val javaNetClient = java.net.http.HttpClient.newBuilder()
+            .executor(Dispatchers.IO.asExecutor())
+            .build()
         (0 until fileSize step STEP).map { start ->
-            GlobalScope.async {
-                semaphore.withPermit {
-                    val endInclusive = minOf(start + STEP, fileSize) - 1
-                    val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
-                    val part = file.readChannel(start, endInclusive).toByteArray()
-                    val res = javaNetClient.sendAsync(
-                        HttpRequest.newBuilder(URI(uploadUrl)).apply {
-                            PUT(HttpRequest.BodyPublishers.ofByteArray(part))
-                            header("Content-Range", "bytes $start-${endInclusive}/$fileSize")
-                        }.build(),
-                        java.net.http.HttpResponse.BodyHandlers.ofString()
-                    ).asDeferred().await()
-                    require(res.statusCode() in 200..299) {
-                        "Failed to upload part: ${res.statusCode()}: ${res.body()}"
-                    }
-                    sentBytes.addAndGet(part.size.toLong())
-                    service.activeTaskProgress += (100 * part.size / fileSize).toInt()
-                }
+            val endInclusive = minOf(start + STEP, fileSize) - 1
+            val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
+            val part = file.readChannel(start, endInclusive).toByteArray()
+            println("Uploading part: $start-$endInclusive")
+            val res = javaNetClient.sendAsync(
+                HttpRequest.newBuilder(URI(uploadUrl)).apply {
+                    PUT(HttpRequest.BodyPublishers.ofByteArray(part))
+                    header("Content-Range", "bytes $start-${endInclusive}/$fileSize")
+                }.build(),
+                java.net.http.HttpResponse.BodyHandlers.ofString()
+            ).asDeferred().await()
+            require(res.statusCode() in 200..299) {
+                "Failed to upload part: ${res.statusCode()}: ${res.body()}"
             }
-        }.joinAll()
+            if (res.statusCode() == 201) {
+                println(
+                    Json.decodeFromString<JsonObject>(res.body())["webUrl"]!!.jsonPrimitive.content
+                )
+            }
+            sentBytes.addAndGet(part.size.toLong())
+            service.activeTaskProgress += (100 * part.size / fileSize).toInt()
+        }
     }
 
     override suspend fun downloadBlob(hash: String): InputStream {
