@@ -4,38 +4,26 @@ import com.github.zly2006.xbackup.api.CloudStorageProvider
 import com.github.zly2006.xbackup.api.XBackupKotlinAsyncApi
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.plugins.onDownload
-import io.ktor.client.plugins.onUpload
+import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.util.cio.readChannel
+import io.ktor.util.*
+import io.ktor.util.cio.*
 import kotlinx.atomicfu.atomic
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import kotlin.random.Random
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.future.future
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
-import org.jetbrains.exposed.sql.update
+import kotlinx.serialization.json.*
 import java.io.InputStream
+import java.net.URI
+import java.net.http.HttpRequest
 import java.util.zip.ZipOutputStream
 import kotlin.io.path.Path
 import kotlin.io.path.createParentDirectories
 import kotlin.io.path.fileSize
 import kotlin.io.path.outputStream
-import kotlin.io.path.readBytes
 
 private const val prefix = "/Apps/xb.2"
 
@@ -101,7 +89,9 @@ class OnedriveSupport(
         val folderId = item["id"]!!.jsonPrimitive.content
         val filename = "xb.upload.backup-${backup.id}.zip"
         log.info("Folder id: $folderId")
-        val uploadSession = httpClient.post("https://graph.microsoft.com/v1.0/me/drive/items/$folderId:/$filename:/createUploadSession") {
+        val uploadSession = httpClient.post(
+            "https://graph.microsoft.com/v1.0/me/drive/items/$folderId:/$filename:/createUploadSession"
+        ) {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(
@@ -110,37 +100,29 @@ class OnedriveSupport(
                     put("name", filename)
                 }
             )
-        }.let { response ->
-            println(response.status)
-            response.body<JsonObject>()
-        }
-        println(uploadSession)
-        val tasks = (0 until fileSize step STEP).map { start ->
-            GlobalScope.async(Dispatchers.IO) {
+        }.body<JsonObject>()
+        val javaNetClient = java.net.http.HttpClient.newHttpClient()
+        (0 until fileSize step STEP).map { start ->
+            GlobalScope.async {
                 semaphore.withPermit {
                     val endInclusive = minOf(start + STEP, fileSize) - 1
-                    val part = file.readChannel(start, endInclusive)
                     val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
-                    retry(5) {
-                        httpClient.put(uploadUrl) {
-                            header("Content-Range", "bytes $start-$endInclusive/$fileSize")
-                            header("Authorization", "Bearer $token")
-                            header("Content-Length", (endInclusive - start + 1).toString())
-                            var lastSent = 0L
-                            onUpload { bytesSentTotal, contentLength ->
-                                sentBytes.addAndGet(bytesSentTotal - lastSent)
-                                lastSent = bytesSentTotal
-                            }
-                            setBody(part)
-                        }.let { response ->
-                            if (!response.status.isSuccess()) {
-                                throw IllegalStateException("Upload failed: ${response.status} ${response.bodyAsText()}")
-                            }
-                        }
+                    val part = file.readChannel(start, endInclusive).toByteArray()
+                    val res = javaNetClient.sendAsync(
+                        HttpRequest.newBuilder(URI(uploadUrl)).apply {
+                            PUT(HttpRequest.BodyPublishers.ofByteArray(part))
+                            header("Content-Range", "bytes $start-${endInclusive}/$fileSize")
+                        }.build(),
+                        java.net.http.HttpResponse.BodyHandlers.ofString()
+                    ).asDeferred().await()
+                    require(res.statusCode() in 200..299) {
+                        "Failed to upload part: ${res.statusCode()}: ${res.body()}"
                     }
+                    sentBytes.addAndGet(part.size.toLong())
+                    service.activeTaskProgress += (100 * part.size / fileSize).toInt()
                 }
             }
-        }
+        }.joinAll()
     }
 
     override suspend fun downloadBlob(hash: String): InputStream {
