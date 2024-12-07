@@ -401,8 +401,12 @@ class BackupDatabaseService(
         )
     }
 
-    suspend fun deleteBackup(backup: IBackup) {
-        dbQuery {
+    override fun deleteBackup(backup: IBackup) = runBlocking {
+        deleteBackupInternal(backup)
+    }
+
+    suspend fun deleteBackupInternal(backup: IBackup) {
+        syncDbQuery {
             backup.entries.forEach { entry ->
                 if (BackupEntryBackupTable.selectAll().where {
                         BackupEntryBackupTable.entry eq entry.id and
@@ -437,7 +441,7 @@ class BackupDatabaseService(
      * @param ignored Predicate to ignore files, this prevents files from being deleted,
      * usually should be opposite of the predicate used in [createBackup]
      */
-    suspend fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) = dbQuery {
+    override suspend fun restore(id: Int, target: Path, ignored: (Path) -> Boolean) = dbQuery {
         val backup = getBackupInternal(id) ?: error("Backup not found")
         val map = backup.entries.associateBy { it.path }.filter { !ignored(Path(it.key)) }
         for (it in target.normalize().toFile().walk().drop(1)) {
@@ -523,6 +527,10 @@ class BackupDatabaseService(
         log.info("Restored backup $id")
     }
 
+    override fun restoreBackup(backup: IBackup, target: Path) = runBlocking {
+        restore(backup.id, target) { false }
+    }
+
     /**
      * Check if this backup is valid
      */
@@ -603,7 +611,7 @@ class BackupDatabaseService(
         }
     }
 
-    fun zipArchive(outputStream: ZipOutputStream, backup: IBackup) {
+    override fun zipArchive(outputStream: ZipOutputStream, backup: IBackup) {
         backup.entries.forEach {
             if (!it.isDirectory) {
                 outputStream.putNextEntry(ZipEntry(it.path).apply {

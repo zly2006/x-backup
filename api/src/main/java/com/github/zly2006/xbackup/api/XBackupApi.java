@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.zip.ZipOutputStream;
 
 class Instance {
     static XBackupApi instance;
@@ -37,4 +38,10 @@ public interface XBackupApi {
     void setCloudStorageProvider(@NotNull CloudStorageProvider provider);
 
     @NotNull CloudStorageProvider getCloudStorageProvider();
+
+    void zipArchive(@NotNull ZipOutputStream stream, @NotNull IBackup backup);
+
+    void restoreBackup(@NotNull IBackup backup, @NotNull Path target);
+
+    void deleteBackup(@NotNull IBackup backup);
 }

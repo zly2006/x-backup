@@ -112,7 +112,7 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
     private fun deleteSelected(gui: ModularGui?) {
         if (selected == null) return
         runBlocking {
-            service.deleteBackup(selected!!)
+            service.deleteBackupInternal(selected!!)
         }
         selected = null
         updateList()

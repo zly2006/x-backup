@@ -348,7 +348,7 @@ object XBackup : ModInitializer {
                         return@forEach
                     }
                     server.broadcast(Utils.translate("message.xb.pruning_backup", it))
-                    service.deleteBackup(service.getBackup(it.toInt())!!)
+                    service.deleteBackupInternal(service.getBackup(it.toInt())!!)
                     count++
                 }
                 server.broadcast(Utils.translate("message.xb.prune_finished", toPrune.size))
@@ -360,7 +360,7 @@ object XBackup : ModInitializer {
         }
 
         backups.filter { it.temporary }.forEach {
-            service.deleteBackup(it)
+            service.deleteBackupInternal(it)
             count++
         }
         return count
