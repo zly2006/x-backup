@@ -639,6 +639,7 @@ object Commands {
                         // restart the server
                         XBackup.log.info("[X Backup] Restarting server...")
                         XBackup.isBusy = false
+                        XBackup.restoring = false
                         it.finishRestore()
                     }
                 }

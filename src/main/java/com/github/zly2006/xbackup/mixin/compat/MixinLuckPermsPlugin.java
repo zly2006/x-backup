@@ -1,15 +1,15 @@
 package com.github.zly2006.xbackup.mixin.compat;
 
 import com.github.zly2006.xbackup.XBackup;
+import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import me.lucko.luckperms.common.plugin.AbstractLuckPermsPlugin;
 import me.lucko.luckperms.common.plugin.scheduler.SchedulerAdapter;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(value = AbstractLuckPermsPlugin.class, remap = false)
 public class MixinLuckPermsPlugin {
-    @Redirect(
+    @WrapWithCondition(
             method = "disable",
             remap = false,
             at = @At(
@@ -18,13 +18,11 @@ public class MixinLuckPermsPlugin {
             ),
             require = 0
     )
-    private void shutdownExecutor(SchedulerAdapter schedulerAdapter) {
-        if (!XBackup.INSTANCE.getRestoring()) {
-            schedulerAdapter.shutdownExecutor();
-        }
+    private boolean shutdownExecutor(SchedulerAdapter schedulerAdapter) {
+        return !XBackup.INSTANCE.isRestoring();
     }
 
-    @Redirect(
+    @WrapWithCondition(
             method = "disable",
             remap = false,
             at = @At(
@@ -33,9 +31,7 @@ public class MixinLuckPermsPlugin {
             ),
             require = 0
     )
-    private void shutdownScheduler(SchedulerAdapter schedulerAdapter) {
-        if (!XBackup.INSTANCE.getRestoring()) {
-            schedulerAdapter.shutdownScheduler();
-        }
+    private boolean shutdownScheduler(SchedulerAdapter schedulerAdapter) {
+        return !XBackup.INSTANCE.isRestoring();
     }
 }
