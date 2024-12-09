@@ -8,6 +8,9 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.jetbrains.annotations.ApiStatus.ScheduledForRemoval
 import org.jetbrains.exposed.dao.id.IntIdTable
@@ -599,6 +602,8 @@ class BackupDatabaseService(
     }
 
     override fun zipArchive(outputStream: ZipOutputStream, backup: IBackup) {
+        activeTask = "Zipping backup #${backup.id}"
+        var done = 0
         backup.entries.forEach {
             if (!it.isDirectory) {
                 outputStream.putNextEntry(ZipEntry(it.path).apply {
@@ -613,6 +618,46 @@ class BackupDatabaseService(
                 input.copyTo(outputStream)
                 input.close()
             }
+            done++
+            activeTaskProgress = 100 * done / backup.entries.size
+        }
+    }
+
+    suspend fun importZipArchive(inputStream: ZipInputStream) {
+        val entries = mutableListOf<BackupEntry>()
+        while (true) {
+            val entry = inputStream.nextEntry ?: break
+            val comment = entry.comment ?: continue
+            val json = Json.parseToJsonElement(comment).jsonObject
+            val hash = json["hash"]!!.jsonPrimitive.content
+            val id = json["id"]!!.jsonPrimitive.int
+            val path = entry.name
+            val size = entry.size
+            val lastModified = entry.lastModifiedTime.toMillis()
+            val isDirectory = entry.isDirectory
+            val zippedSize = entry.compressedSize
+            if (!getBlobFile(hash).exists()) {
+                if (size > 1024) {
+                    getBlobFile(hash).outputStream().use { output ->
+                        inputStream.copyTo(output)
+                    }
+                }
+                else {
+                    getBlobFile(hash).writeBytes(inputStream.readBytes())
+                }
+            }
+            entries.add(
+                BackupEntry(
+                    id,
+                    path,
+                    size,
+                    zippedSize,
+                    lastModified,
+                    isDirectory,
+                    hash,
+                    if (size > 1024) 1 else 0
+                )
+            )
         }
     }
 
