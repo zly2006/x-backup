@@ -233,10 +233,6 @@ object Commands {
                                             formatted(Formatting.DARK_GREEN)
                                         }
                                     )
-                                    if (backup.entries.all { it.isDirectory || it.cloudDriveId != null }) {
-                                        append("\n")
-                                        append(Text.literal("此存档已完成云备份。"))
-                                    }
                                 }
                             )
                         }
@@ -447,7 +443,7 @@ object Commands {
                         argument("id", IntegerArgumentType.integer(1)).executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             val backup = getBackup(id)
-                            if (backup.entries.all { it.isDirectory || it.cloudDriveId != null }) {
+                            if (backup.cloudBackupUrl != null) {
                                 it.source.send(Utils.translate("command.xb.backup_already_uploaded", backupIdText(id)))
                                 return@executes 0
                             }

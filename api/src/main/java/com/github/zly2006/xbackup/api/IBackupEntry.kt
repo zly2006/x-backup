@@ -9,7 +9,6 @@ interface IBackupEntry {
     val lastModified: Long
     val isDirectory: Boolean
     val hash: String
-    val cloudDriveId: Byte?
     val zippedSize: Long
     val compress: Int
     fun valid(service: XBackupApi): Boolean

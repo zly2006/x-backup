@@ -14,8 +14,8 @@ import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.*
+import org.jetbrains.exposed.sql.update
 import java.io.InputStream
 import java.net.URI
 import java.net.http.HttpRequest
@@ -104,6 +104,7 @@ class OnedriveSupport(
         val javaNetClient = java.net.http.HttpClient.newBuilder()
             .executor(Dispatchers.IO.asExecutor())
             .build()
+        var uploadJo: JsonObject? = null
         (0 until fileSize step STEP).map { start ->
             val endInclusive = minOf(start + STEP, fileSize) - 1
             val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
@@ -120,12 +121,21 @@ class OnedriveSupport(
                 "Failed to upload part: ${res.statusCode()}: ${res.body()}"
             }
             if (res.statusCode() == 201) {
-                println(
-                    Json.decodeFromString<JsonObject>(res.body())["webUrl"]!!.jsonPrimitive.content
-                )
+                uploadJo = Json.decodeFromString<JsonObject>(res.body())
             }
             sentBytes.addAndGet(part.size.toLong())
             service.activeTaskProgress += (100 * part.size / fileSize).toInt()
+        }
+        uploadJo?.let { jojo ->
+            service.syncDbQuery {
+                BackupDatabaseService.BackupTable.update({
+                    BackupDatabaseService.BackupTable.id eq id
+                }) {
+                    val url = "https://backup.redenmc.com/v1/onedrive/" + jojo["id"]!!.jsonPrimitive.content
+                    it[cloudBackupUrl] = url
+                    log.info("Upload complete: $url")
+                }
+            }
         }
     }
 

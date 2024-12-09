@@ -8,4 +8,5 @@ interface IBackup {
     val comment: String
     val entries: List<IBackupEntry>
     val temporary: Boolean
+    val cloudBackupUrl: String?
 }

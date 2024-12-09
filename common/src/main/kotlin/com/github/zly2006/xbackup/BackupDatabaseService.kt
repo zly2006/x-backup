@@ -14,6 +14,8 @@ import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.json.json
+import org.jetbrains.exposed.sql.statements.StatementContext
+import org.jetbrains.exposed.sql.statements.expandArgs
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
@@ -112,6 +114,7 @@ class BackupDatabaseService(
         val created = long("created")
         val comment = varchar("comment", 255)
         val temporary = bool("temporary").default(false)
+        val cloudBackupUrl = varchar("cloud_backup_url", 255).nullable()
         val metadata = json<JsonObject>("metadata", Json).nullable()
     }
 
@@ -130,7 +133,6 @@ class BackupDatabaseService(
         override val isDirectory: Boolean,
         override val hash: String,
         private var _compress: Int,
-        override val cloudDriveId: Byte?,
     ) : IBackupEntry {
         override val zippedSize: Long get() = _zippedSize
         override val compress: Int get() = _compress
@@ -150,22 +152,6 @@ class BackupDatabaseService(
 
         suspend fun getInputStreamInternal(service: BackupDatabaseService): InputStream? {
             val blob = service.getBlobFile(hash)
-            if (cloudDriveId != null && !valid(service)) {
-                service.activeTask = "Downloading backup"
-                try {
-                    blob.outputStream().use { output ->
-                        service.oneDriveService.downloadBlob(hash).use { input ->
-                            input.copyTo(output)
-                        }
-                    }
-                    log.info("Downloaded blob $hash")
-                    require(blob.fileSize() == zippedSize) {
-                        "Downloaded blob $hash size mismatch: expected: $zippedSize, actual: ${blob.fileSize()}"
-                    }
-                } catch (e: IOException) {
-                    log.error("Error downloading blob $hash", e)
-                }
-            }
             if (!blob.exists()) {
                 return null
             }
@@ -203,6 +189,7 @@ class BackupDatabaseService(
         override val comment: String,
         override val entries: List<BackupEntry>,
         override val temporary: Boolean,
+        override val cloudBackupUrl: String?,
         val metadata: JsonObject?,
     ) : IBackup
 
@@ -565,7 +552,7 @@ class BackupDatabaseService(
                         lastModifiedTime = FileTime.fromMillis(it.lastModified)
                         comment = buildJsonObject {
                             put("hash", it.hash)
-                            put("cloud", it.cloudDriveId)
+                            put("id", it.id)
                         }.toString()
                     })
                 val input = requireNotNull(it.getInputStreamInternal(this)) {
@@ -617,7 +604,7 @@ class BackupDatabaseService(
                 outputStream.putNextEntry(ZipEntry(it.path).apply {
                     comment = buildJsonObject {
                         put("hash", it.hash)
-                        put("cloud", it.cloudDriveId)
+                        put("id", it.id)
                     }.toString()
                 })
                 val input = requireNotNull(it.getInputStream(this)) {
@@ -668,6 +655,7 @@ class BackupDatabaseService(
                     BackupEntryTable.id inSubQuery entries
                 }.map { it.toBackupEntry() },
                 this[BackupTable.temporary],
+                this[BackupTable.cloudBackupUrl],
                 this[BackupTable.metadata]
             )
         }
@@ -690,7 +678,6 @@ class BackupDatabaseService(
                 1
             }
             else this[BackupEntryTable.compress].toInt(),
-            this[BackupEntryTable.cloudDriveId].let { if (it == 0.toByte()) null else it },
         )
     }
 }
