@@ -325,9 +325,11 @@ object Commands {
                                 it.source.server.setAutoSaving(true)
                                 val id = result.backId
                                 if (XBackup.config.cloudBackupToken != null) {
-                                    it.source.send(Utils.translate("command.xb.uploading_backup", backupIdText(id)))
-                                    XBackup.service.cloudStorageProvider.uploadBackup(XBackup.service, id)
-                                    it.source.send(Utils.translate("command.xb.backup_uploaded", backupIdText(id)))
+                                    XBackup.service.launch {
+                                        it.source.send(Utils.translate("command.xb.uploading_backup", backupIdText(id)))
+                                        XBackup.service.cloudStorageProvider.uploadBackup(XBackup.service, id)
+                                        it.source.send(Utils.translate("command.xb.backup_uploaded", backupIdText(id)))
+                                    }
                                 }
                             }
                             1
@@ -447,7 +449,7 @@ object Commands {
                                 it.source.send(Utils.translate("command.xb.backup_already_uploaded", backupIdText(id)))
                                 return@executes 0
                             }
-                            XBackup.ensureNotBusy {
+                            XBackup.ensureNotBusy(Dispatchers.IO) {
                                 it.source.send(Utils.translate("command.xb.uploading_backup", backupIdText(id)))
                                 val result = XBackup.service.cloudStorageProvider.uploadBackup(XBackup.service, backup.id)
                                 it.source.send(Utils.translate("command.xb.backup_uploaded", backupIdText(id)))
