@@ -4,36 +4,27 @@ import com.github.zly2006.xbackup.api.CloudStorageProvider
 import com.github.zly2006.xbackup.api.XBackupKotlinAsyncApi
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.plugins.*
 import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
 import io.ktor.util.*
 import io.ktor.util.cio.*
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.sql.update
 import java.io.InputStream
 import java.net.URI
 import java.net.http.HttpRequest
 import java.util.zip.ZipOutputStream
-import kotlin.io.path.Path
-import kotlin.io.path.createParentDirectories
-import kotlin.io.path.deleteIfExists
-import kotlin.io.path.fileSize
-import kotlin.io.path.outputStream
-
-private const val prefix = "/Apps/xb.2"
+import kotlin.io.path.*
 
 class OnedriveSupport(
     private val config: Config,
     private val httpClient: HttpClient
 ): CloudStorageProvider {
-    private var tokenExpires = 0L
-    private var token = ""
     private val receivedBytes = atomic(0L)
     private val sentBytes = atomic(0L)
     override var bytesReceivedLastSecond = 0L
@@ -50,26 +41,11 @@ class OnedriveSupport(
         job.invokeOnCompletion { cause -> log.info("Network stats tracker stopped", cause) }
     }
 
-    private suspend fun getOneDriveToken(): String {
-        if (tokenExpires < System.currentTimeMillis()) {
-            val response = httpClient.get("https://redenmc.com/api/backup/onedrive") {
-                header("Authorization", "Bearer ${config.cloudBackupToken}")
-            }.bodyAsText()
-            tokenExpires = System.currentTimeMillis() + 60_000
-            token = response
-            return response
-        }
-        return token
-    }
-
     @OptIn(DelicateCoroutinesApi::class)
     override suspend fun uploadBackup(service: XBackupKotlinAsyncApi, id: Int) {
         val backup = requireNotNull(service.getBackup(id)) {
             "Backup not found"
         }
-        // if get token failed, it will throw exception
-        getOneDriveToken()
-
         service.activeTask = "Uploading to OneDrive"
         val semaphore = Semaphore(4) // Limit to 4 concurrent uploads
         val file = Path(".tmp", "xb.upload.zip").createParentDirectories()
@@ -81,26 +57,8 @@ class OnedriveSupport(
         val fileSize = file.fileSize()
         val STEP = 10 * 1024 * 1024L
         // get item-id
-        val item = httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix") {
-            header("Authorization", "Bearer $token")
-        }.body<JsonObject>()
-        if (item["id"] == null) {
-            throw IllegalStateException("Failed to get item-id")
-        }
-        val folderId = item["id"]!!.jsonPrimitive.content
-        val filename = "xb.upload.backup-${backup.id}.zip"
-        log.info("Folder id: $folderId")
-        val uploadSession = httpClient.post(
-            "https://graph.microsoft.com/v1.0/me/drive/items/$folderId:/$filename:/createUploadSession"
-        ) {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody(
-                buildJsonObject {
-                    put("@microsoft.graph.conflictBehavior", "rename")
-                    put("name", filename)
-                }
-            )
+        val uploadSession = httpClient.post("https://redenmc.com/api/backup/v1/onedrive/upload") {
+            header("Authorization", "Bearer ${config.cloudBackupToken}")
         }.body<JsonObject>()
         val javaNetClient = java.net.http.HttpClient.newBuilder()
             .executor(Dispatchers.IO.asExecutor())
@@ -132,7 +90,7 @@ class OnedriveSupport(
                 BackupDatabaseService.BackupTable.update({
                     BackupDatabaseService.BackupTable.id eq id
                 }) {
-                    val url = "https://backup.redenmc.com/v1/onedrive/" + jojo["id"]!!.jsonPrimitive.content
+                    val url = "https://redenmc.com/api/backup/v1/onedrive/" + jojo["id"]!!.jsonPrimitive.content
                     it[cloudBackupUrl] = url
                     log.info("Upload complete: $url")
                 }
@@ -142,33 +100,6 @@ class OnedriveSupport(
     }
 
     override suspend fun downloadBlob(hash: String): InputStream {
-        return retry(5) {
-            val token = getOneDriveToken()
-
-            httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/$hash") {
-                header("Authorization", "Bearer $token")
-            }.let { response ->
-                if (!response.status.isSuccess()) {
-                    if (response.status.value == 404) {
-                        throw DontRetryException(IllegalStateException("404: $hash, ${response.bodyAsText()}, ${response.request.url}"))
-                    }
-                }
-                log.info("Downloading $hash, size: ${response.body<JsonObject>()["size"]?.jsonPrimitive?.long}")
-            }
-            httpClient.get("https://graph.microsoft.com/v1.0/me/drive/root:$prefix/$hash:/content") {
-                header("Authorization", "Bearer $token")
-
-                var lastReceived = 0L
-                onDownload { bytesSentTotal, contentLength ->
-                    receivedBytes.addAndGet(bytesSentTotal - lastReceived)
-                    lastReceived = bytesSentTotal
-                }
-            }.let { response ->
-                if (!response.status.isSuccess()) {
-                    throw IllegalStateException("Download failed: ${response.status} ${response.bodyAsText()}")
-                }
-                response.readBytes().inputStream()
-            }
-        }
+        TODO()
     }
 }
