@@ -22,6 +22,7 @@ import java.net.http.HttpRequest
 import java.util.zip.ZipOutputStream
 import kotlin.io.path.Path
 import kotlin.io.path.createParentDirectories
+import kotlin.io.path.deleteIfExists
 import kotlin.io.path.fileSize
 import kotlin.io.path.outputStream
 
@@ -137,6 +138,7 @@ class OnedriveSupport(
                 }
             }
         }
+        Path(".tmp", "xb.upload.zip").deleteIfExists()
     }
 
     override suspend fun downloadBlob(hash: String): InputStream {

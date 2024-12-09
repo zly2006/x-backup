@@ -1,3 +1,3 @@
-## 0.3.1
+## 0.3.4
 
-Support MC 1.21.4
+Minor fixes.
