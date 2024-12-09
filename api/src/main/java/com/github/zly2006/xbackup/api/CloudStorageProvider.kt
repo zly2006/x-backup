@@ -8,5 +8,7 @@ interface CloudStorageProvider {
 
     suspend fun uploadBackup(service: XBackupKotlinAsyncApi, id: Int)
 
-    suspend fun downloadBlob(hash: String): InputStream
+    suspend fun downloadBlob(hash: String): InputStream {
+        TODO()
+    }
 }

@@ -15,7 +15,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.sql.update
-import java.io.InputStream
 import java.net.URI
 import java.net.http.HttpRequest
 import java.util.zip.ZipOutputStream
@@ -36,6 +35,7 @@ class OnedriveSupport(
             bytesSentLastSecond = sentBytes.getAndSet(0)
         }
     }
+    private var uploadTask: Job? = null
 
     init {
         job.invokeOnCompletion { cause -> log.info("Network stats tracker stopped", cause) }
@@ -43,63 +43,59 @@ class OnedriveSupport(
 
     @OptIn(DelicateCoroutinesApi::class)
     override suspend fun uploadBackup(service: XBackupKotlinAsyncApi, id: Int) {
-        val backup = requireNotNull(service.getBackup(id)) {
-            "Backup not found"
-        }
-        service.activeTask = "Uploading to OneDrive"
-        val semaphore = Semaphore(4) // Limit to 4 concurrent uploads
-        val file = Path(".tmp", "xb.upload.zip").createParentDirectories()
-        service as BackupDatabaseService
-        ZipOutputStream(file.outputStream()).use { stream ->
-            service.zipArchive(stream, service.getBackup(id)!!)
-        }
-        // multi thread uploading, using semaphore to limit the number of concurrent uploads
-        val fileSize = file.fileSize()
-        val STEP = 10 * 1024 * 1024L
-        // get item-id
-        val uploadSession = httpClient.post("https://redenmc.com/api/backup/v1/onedrive/upload") {
-            header("Authorization", "Bearer ${config.cloudBackupToken}")
-        }.body<JsonObject>()
-        val javaNetClient = java.net.http.HttpClient.newBuilder()
-            .executor(Dispatchers.IO.asExecutor())
-            .build()
-        var uploadJo: JsonObject? = null
-        (0 until fileSize step STEP).map { start ->
-            val endInclusive = minOf(start + STEP, fileSize) - 1
-            val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
-            val part = file.readChannel(start, endInclusive).toByteArray()
-            println("Uploading part: $start-$endInclusive")
-            val res = javaNetClient.sendAsync(
-                HttpRequest.newBuilder(URI(uploadUrl)).apply {
-                    PUT(HttpRequest.BodyPublishers.ofByteArray(part))
-                    header("Content-Range", "bytes $start-${endInclusive}/$fileSize")
-                }.build(),
-                java.net.http.HttpResponse.BodyHandlers.ofString()
-            ).asDeferred().await()
-            require(res.statusCode() in 200..299) {
-                "Failed to upload part: ${res.statusCode()}: ${res.body()}"
+        uploadTask?.cancelAndJoin()
+        uploadTask = GlobalScope.launch {
+            requireNotNull(service.getBackup(id)) { "Backup not found" }
+            service.activeTask = "Uploading to OneDrive"
+            val file = Path(".tmp", "xb.upload.zip").createParentDirectories()
+            service as BackupDatabaseService
+            ZipOutputStream(file.outputStream()).use { stream ->
+                service.zipArchive(stream, service.getBackup(id)!!)
             }
-            if (res.statusCode() == 201) {
-                uploadJo = Json.decodeFromString<JsonObject>(res.body())
+            val fileSize = file.fileSize()
+            val STEP = 10 * 1024 * 1024L
+            // get item-id
+            val uploadSession = httpClient.post("https://redenmc.com/api/backup/v1/onedrive/upload") {
+                header("Authorization", "Bearer ${config.cloudBackupToken}")
+            }.body<JsonObject>()
+            val javaNetClient = java.net.http.HttpClient.newBuilder()
+                .executor(Dispatchers.IO.asExecutor())
+                .build()
+            var uploadJo: JsonObject? = null
+            (0 until fileSize step STEP).map { start ->
+                val endInclusive = minOf(start + STEP, fileSize) - 1
+                val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
+                val part = file.readChannel(start, endInclusive).toByteArray()
+                println("Uploading part: $start-$endInclusive")
+                val res = javaNetClient.sendAsync(
+                    HttpRequest.newBuilder(URI(uploadUrl)).apply {
+                        PUT(HttpRequest.BodyPublishers.ofByteArray(part))
+                        header("Content-Range", "bytes $start-${endInclusive}/$fileSize")
+                    }.build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString()
+                ).asDeferred().await()
+                require(res.statusCode() in 200..299) {
+                    "Failed to upload part: ${res.statusCode()}: ${res.body()}"
+                }
+                if (res.statusCode() == 201) {
+                    uploadJo = Json.decodeFromString<JsonObject>(res.body())
+                }
+                sentBytes.addAndGet(part.size.toLong())
+                service.activeTaskProgress += (100 * part.size / fileSize).toInt()
             }
-            sentBytes.addAndGet(part.size.toLong())
-            service.activeTaskProgress += (100 * part.size / fileSize).toInt()
-        }
-        uploadJo?.let { jojo ->
-            service.syncDbQuery {
-                BackupDatabaseService.BackupTable.update({
-                    BackupDatabaseService.BackupTable.id eq id
-                }) {
-                    val url = "https://redenmc.com/api/backup/v1/onedrive/" + jojo["id"]!!.jsonPrimitive.content
-                    it[cloudBackupUrl] = url
-                    log.info("Upload complete: $url")
+            uploadJo?.let { jojo ->
+                service.syncDbQuery {
+                    BackupDatabaseService.BackupTable.update({
+                        BackupDatabaseService.BackupTable.id eq id
+                    }) {
+                        val url = "https://redenmc.com/api/backup/v1/onedrive/" + jojo["id"]!!.jsonPrimitive.content
+                        it[cloudBackupUrl] = url
+                        log.info("Upload complete: $url")
+                    }
                 }
             }
+            Path(".tmp", "xb.upload.zip").deleteIfExists()
+            uploadTask = null
         }
-        Path(".tmp", "xb.upload.zip").deleteIfExists()
-    }
-
-    override suspend fun downloadBlob(hash: String): InputStream {
-        TODO()
     }
 }
