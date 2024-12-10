@@ -17,7 +17,7 @@ suspend inline fun <T> retry(times: Int, function: () -> T): T {
         } catch (e: Throwable) {
             log.error("Error in retry, attempt ${it + 1}/$times", e)
             lastException = e
-            delay(1000)
+            delay(2000)
         }
     }
     throw RuntimeException("Retry failed", lastException)

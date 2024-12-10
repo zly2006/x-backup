@@ -116,16 +116,19 @@ object Commands {
         dispatcher.register {
             literal("xb") {
                 literal("status") {
-                    executes {
-                        it.source.send(Utils.translate("command.xb.status", if (XBackup.isBusy) "Busy" else "OK"))
+                    fun basicStatus(source: ServerCommandSource) {
+                        source.send(Utils.translate("command.xb.status", if (XBackup.isBusy) "Busy" else "OK"))
                         if (XBackup.config.mirrorMode) {
-                            it.source.send(Text.literal("X Backup is in mirror mode").formatted(Formatting.GOLD))
+                            source.send(Text.literal("X Backup is in mirror mode").formatted(Formatting.GOLD))
                         }
-                        it.source.send(Utils.translate("command.xb.background_task_status", XBackup.backgroundState.toString()))
+                        source.send(Utils.translate("command.xb.background_task_status", XBackup.backgroundState.toString()))
                         if (XBackup.service.activeTaskProgress != -1) {
-                            it.source.send(Text.literal("云备份任务：${XBackup.service.activeTask} ${XBackup.service.activeTaskProgress}%"))
-                            it.source.send(networkStatsText())
+                            source.send(Text.literal("云备份任务：${XBackup.service.activeTask} ${XBackup.service.activeTaskProgress}%"))
+                            source.send(networkStatsText())
                         }
+                    }
+                    executes {
+                        basicStatus(it.source)
                         GlobalScope.launch(it.source.server.asCoroutineDispatcher()) {
                             val status = XBackup.service.status()
                             it.source.send(
@@ -156,6 +159,12 @@ object Commands {
                             }
                         }
                         1
+                    }
+                    literal("--no-db") {
+                        executes {
+                            basicStatus(it.source)
+                            1
+                        }
                     }
                 }
                 literal("list") {

@@ -40,7 +40,7 @@ class OnedriveSupport(
             bytesSentLastSecond = sentBytes.getAndSet(0)
         }
     }
-    private var uploadTask: Job? = null
+    private var uploadTask: Deferred<Result<Unit>>? = null
 
     init {
         job.invokeOnCompletion { cause -> log.info("Network stats tracker stopped", cause) }
@@ -49,71 +49,75 @@ class OnedriveSupport(
     @OptIn(DelicateCoroutinesApi::class)
     override suspend fun uploadBackup(service: XBackupKotlinAsyncApi, id: Int) {
         uploadTask?.cancelAndJoin()
-        uploadTask = GlobalScope.launch {
-            val backup = requireNotNull(service.getBackup(id)) { "Backup not found" }
-            service.activeTask = "Uploading to OneDrive"
-            val file = Path(".tmp", "xb.upload.zip").createParentDirectories()
-            service as BackupDatabaseService
-            ZipOutputStream(file.outputStream()).use { stream ->
-                service.zipArchive(stream, service.getBackup(id)!!)
-            }
-            val fileSize = file.fileSize()
-            // get item-id
-            val uploadSession = httpClient.post("https://redenmc.com/api/backup/v1/onedrive/upload") {
-                header("Authorization", "Bearer ${config.cloudBackupToken}")
-                contentType(ContentType.Application.Json)
-                setBody(backup as BackupDatabaseService.Backup)
-            }.body<JsonObject>()
-            val javaNetClient = java.net.http.HttpClient.newBuilder()
-                .executor(Dispatchers.IO.asExecutor())
-                .build()
-            var uploadJo: JsonObject? = null
-            (0 until fileSize step STEP).map { start ->
-                retry(3) {
-                    val endInclusive = minOf(start + STEP, fileSize) - 1
-                    val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
-                    val part = file.readChannel(start, endInclusive).toByteArray()
-                    println("Uploading part: $start-$endInclusive")
-                    val res = javaNetClient.sendAsync(
-                        HttpRequest.newBuilder(URI(uploadUrl)).apply {
-                            PUT(HttpRequest.BodyPublishers.ofByteArray(part))
-                            header("Content-Range", "bytes $start-${endInclusive}/$fileSize")
-                        }.build(),
-                        java.net.http.HttpResponse.BodyHandlers.ofString()
-                    ).asDeferred().await()
-                    require(res.statusCode() in 200..299) {
-                        "Failed to upload part: ${res.statusCode()}: ${res.body()}"
-                    }
-                    if (res.statusCode() == 201) {
-                        uploadJo = Json.decodeFromString<JsonObject>(res.body())
-                    }
-                    sentBytes.addAndGet(part.size.toLong())
-                    service.activeTaskProgress += (100 * part.size / fileSize).toInt()
+        uploadTask = GlobalScope.async {
+            runCatching {
+                val backup = requireNotNull(service.getBackup(id)) { "Backup not found" }
+                service.activeTask = "Uploading to OneDrive"
+                val file = Path(".tmp", "xb.upload.zip").createParentDirectories()
+                service as BackupDatabaseService
+                ZipOutputStream(file.outputStream()).use { stream ->
+                    service.zipArchive(stream, service.getBackup(id)!!)
                 }
-            }
-            uploadJo?.let { jojo ->
-                val itemId = jojo["id"]!!.jsonPrimitive.content
-                service.syncDbQuery {
-                    BackupDatabaseService.BackupTable.update({
-                        BackupDatabaseService.BackupTable.id eq id
-                    }) {
-                        val url = "https://redenmc.com/api/backup/v1/onedrive/$itemId"
-                        it[cloudBackupUrl] = url
-                        log.info("Upload complete: $url")
+                val fileSize = file.fileSize()
+                // get item-id
+                val uploadSession = retry(5) {
+                    httpClient.post("https://redenmc.com/api/backup/v1/onedrive/upload") {
+                        header("Authorization", "Bearer ${config.cloudBackupToken}")
+                        contentType(ContentType.Application.Json)
+                        setBody("backup")
+                    }.body<JsonObject>()
+                }
+                val javaNetClient = java.net.http.HttpClient.newBuilder()
+                    .executor(Dispatchers.IO.asExecutor())
+                    .build()
+                var uploadJo: JsonObject? = null
+                (0 until fileSize step STEP).map { start ->
+                    retry(3) {
+                        val endInclusive = minOf(start + STEP, fileSize) - 1
+                        val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
+                        val part = file.readChannel(start, endInclusive).toByteArray()
+                        println("Uploading part: $start-$endInclusive")
+                        val res = javaNetClient.sendAsync(
+                            HttpRequest.newBuilder(URI(uploadUrl)).apply {
+                                PUT(HttpRequest.BodyPublishers.ofByteArray(part))
+                                header("Content-Range", "bytes $start-${endInclusive}/$fileSize")
+                            }.build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString()
+                        ).asDeferred().await()
+                        require(res.statusCode() in 200..299) {
+                            "Failed to upload part: ${res.statusCode()}: ${res.body()}"
+                        }
+                        if (res.statusCode() == 201) {
+                            uploadJo = Json.decodeFromString<JsonObject>(res.body())
+                        }
+                        sentBytes.addAndGet(part.size.toLong())
+                        service.activeTaskProgress += (100 * part.size / fileSize).toInt()
                     }
                 }
-                httpClient.post("https://redenmc.com/api/backup/v1/onedrive/$itemId") {
-                    header("Authorization", "Bearer ${config.cloudBackupToken}")
-                    contentType(ContentType.Application.Json)
-                    setBody(buildJsonObject {
-                        put("localPath", service.databaseDir.parent.absolutePathString())
-                        put("worldName", service.databaseDir.name)
-                    }.toString())
+                uploadJo?.let { jojo ->
+                    val itemId = jojo["id"]!!.jsonPrimitive.content
+                    service.syncDbQuery {
+                        BackupDatabaseService.BackupTable.update({
+                            BackupDatabaseService.BackupTable.id eq id
+                        }) {
+                            val url = "https://redenmc.com/api/backup/v1/onedrive/$itemId"
+                            it[cloudBackupUrl] = url
+                            log.info("Upload complete: $url")
+                        }
+                    }
+                    httpClient.post("https://redenmc.com/api/backup/v1/onedrive/$itemId") {
+                        header("Authorization", "Bearer ${config.cloudBackupToken}")
+                        contentType(ContentType.Application.Json)
+                        setBody(buildJsonObject {
+                            put("localPath", service.databaseDir.parent.absolutePathString())
+                            put("worldName", service.databaseDir.name)
+                        }.toString())
+                    }
                 }
+                Path(".tmp", "xb.upload.zip").deleteIfExists()
+                uploadTask = null
             }
-            Path(".tmp", "xb.upload.zip").deleteIfExists()
-            uploadTask = null
         }
-        uploadTask?.join()
+        uploadTask?.await()?.getOrThrow()
     }
 }
