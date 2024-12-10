@@ -325,7 +325,7 @@ object Commands {
                                 it.source.server.setAutoSaving(true)
                                 val id = result.backId
                                 if (XBackup.config.cloudBackupToken != null) {
-                                    XBackup.service.launch {
+                                    XBackup.service.launch(Dispatchers.Default) {
                                         it.source.send(Utils.translate("command.xb.uploading_backup", backupIdText(id)))
                                         XBackup.service.cloudStorageProvider.uploadBackup(XBackup.service, id)
                                         it.source.send(Utils.translate("command.xb.backup_uploaded", backupIdText(id)))

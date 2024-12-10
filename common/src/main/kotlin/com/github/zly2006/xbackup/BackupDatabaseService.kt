@@ -36,6 +36,7 @@ import kotlin.io.path.*
 
 @Suppress("SuspendFunctionOnCoroutineScope")
 class BackupDatabaseService(
+    val databaseDir: Path,
     val database: Database,
     private val blobDir: Path,
     config: Config

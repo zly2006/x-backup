@@ -48,6 +48,7 @@ public class MixinSelectWorldScreen extends Screen {
                     if (levelList.getSelectedAsOptional().isPresent()) {
                         String name = levelList.getSelectedAsOptional().get().level.getName();
                         BackupDatabaseService service = new BackupDatabaseService(
+                                Path.of("saves").toAbsolutePath().normalize(),
                                 XBackup.INSTANCE.getDatabaseFromWorld(Path.of("saves", name)),
                                 Path.of("").toAbsolutePath().resolve(XBackup.config.getBlobPath()).normalize(),
                                 XBackup.config

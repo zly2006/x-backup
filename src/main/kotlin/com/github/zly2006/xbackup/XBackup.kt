@@ -40,8 +40,8 @@ object XBackup : ModInitializer {
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
     const val MOD_VERSION = /*$ mod_version*/ "0.3.4"
-    const val GIT_COMMIT = /*$ git_commit*/ "164c37e"
-    const val COMMIT_DATE = /*$ commit_date*/ "2024-12-09T23:14:51+08:00"
+    const val GIT_COMMIT = /*$ git_commit*/ "56ce0e2"
+    const val COMMIT_DATE = /*$ commit_date*/ "2024-12-10T00:12:23+08:00"
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
 
@@ -150,7 +150,7 @@ object XBackup : ModInitializer {
             }
             else {
                 server.getSavePath(WorldSavePath.ROOT)
-            }.toAbsolutePath()
+            }.toAbsolutePath().normalize()
             val database = getDatabaseFromWorld(worldPath)
             if (config.mirrorMode) {
                 val sourceConfig = kotlin.runCatching {
@@ -167,14 +167,19 @@ object XBackup : ModInitializer {
                 }
                 val config = sourceConfig ?: config
                 service = BackupDatabaseService(
+                    worldPath,
                     database,
                     Path(this.config.mirrorFrom!!).resolve(config.blobPath).absolute().normalize(),
                     config
                 )
             }
             else {
-                service =
-                    BackupDatabaseService(database, Path("").absolute().resolve(config.blobPath).normalize(), config)
+                service = BackupDatabaseService(
+                    worldPath,
+                    database,
+                    Path("").absolute().resolve(config.blobPath).normalize(),
+                    config
+                )
             }
             XBackupApi.setInstance(service)
             if (config.cloudBackupToken != null) {
