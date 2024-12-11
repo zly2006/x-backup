@@ -18,6 +18,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.jetbrains.exposed.sql.update
+import org.slf4j.LoggerFactory
 import java.net.URI
 import java.net.http.HttpRequest
 import java.util.zip.ZipOutputStream
@@ -29,26 +30,17 @@ class OnedriveSupport(
     private val config: Config,
     private val httpClient: HttpClient
 ): CloudStorageProvider {
-    private val receivedBytes = atomic(0L)
-    private val sentBytes = atomic(0L)
+    private val log = LoggerFactory.getLogger("X Backup/OnrDrive")!!
     override var bytesReceivedLastSecond = 0L
     override var bytesSentLastSecond = 0L
-    private val job = GlobalScope.launch {
-        while (true) {
-            delay(1000)
-            bytesReceivedLastSecond = receivedBytes.getAndSet(0)
-            bytesSentLastSecond = sentBytes.getAndSet(0)
-        }
-    }
     private var uploadTask: Deferred<Result<Unit>>? = null
-
-    init {
-        job.invokeOnCompletion { cause -> log.info("Network stats tracker stopped", cause) }
-    }
 
     @OptIn(DelicateCoroutinesApi::class)
     override suspend fun uploadBackup(service: XBackupKotlinAsyncApi, id: Int) {
-        uploadTask?.cancelAndJoin()
+        try {
+            uploadTask?.cancelAndJoin()
+        } catch (_: CancellationException) {
+        }
         uploadTask = GlobalScope.async {
             runCatching {
                 val backup = requireNotNull(service.getBackup(id)) { "Backup not found" }
@@ -59,6 +51,7 @@ class OnedriveSupport(
                     service.zipArchive(stream, service.getBackup(id)!!)
                 }
                 val fileSize = file.fileSize()
+                log.info("Zip file size: ${fileSize / 1024 / 1024}MB")
                 // get item-id
                 val uploadSession = retry(5) {
                     httpClient.post("https://redenmc.com/api/backup/v1/onedrive/upload") {
@@ -67,6 +60,7 @@ class OnedriveSupport(
                         setBody("backup")
                     }.body<JsonObject>()
                 }
+                log.info("Received upload session from server")
                 val javaNetClient = java.net.http.HttpClient.newBuilder()
                     .executor(Dispatchers.IO.asExecutor())
                     .build()
@@ -76,7 +70,8 @@ class OnedriveSupport(
                         val endInclusive = minOf(start + STEP, fileSize) - 1
                         val uploadUrl = uploadSession["uploadUrl"]!!.jsonPrimitive.content
                         val part = file.readChannel(start, endInclusive).toByteArray()
-                        println("Uploading part: $start-$endInclusive")
+                        log.info("Uploading part: $start-$endInclusive")
+                        val timeStart = System.currentTimeMillis()
                         val res = javaNetClient.sendAsync(
                             HttpRequest.newBuilder(URI(uploadUrl)).apply {
                                 PUT(HttpRequest.BodyPublishers.ofByteArray(part))
@@ -90,7 +85,8 @@ class OnedriveSupport(
                         if (res.statusCode() == 201) {
                             uploadJo = Json.decodeFromString<JsonObject>(res.body())
                         }
-                        sentBytes.addAndGet(part.size.toLong())
+                        val timeEnd = System.currentTimeMillis()
+                        bytesSentLastSecond = (part.size * 1000 / (timeEnd - timeStart))
                         service.activeTaskProgress += (100 * part.size / fileSize).toInt()
                     }
                 }
