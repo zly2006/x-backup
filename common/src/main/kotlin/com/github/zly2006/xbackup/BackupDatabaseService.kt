@@ -662,6 +662,24 @@ class BackupDatabaseService(
         }
     }
 
+    suspend fun deleteUnusedBlobs(): Int {
+        val used = dbQuery {
+            val column = Substring(BackupEntryTable.hash, intLiteral(3), intLiteral(30))
+            BackupEntryTable.select(
+                column // 32 -2 = 30
+            ).withDistinct(true).map { row -> row[column] }
+        }.toSet()
+        val unused = getBlobFile("").toFile().walk().filter { it.isFile }.filterNot {
+            it.name in used
+        }.toList()
+        log.info("Deleting ${unused.size} unused blobs")
+        unused.forEach {
+            it.delete()
+        }
+        log.info("Deleted ${unused.size} unused blobs")
+        return unused.size
+    }
+
     override suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =
         newSuspendedTransaction(Dispatchers.IO, database, statement = block)
 

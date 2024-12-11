@@ -451,6 +451,15 @@ object Commands {
                             1
                         }
                     }
+                    literal("rm-unused-blobs") {
+                        executes {
+                            XBackup.ensureNotBusy {
+                                val result = XBackup.service.deleteUnusedBlobs()
+                                it.source.send(Text.literal("Deleted $result unused blobs"))
+                            }
+                            1
+                        }
+                    }
                     literal("upload") {
                         argument("id", IntegerArgumentType.integer(1)).executes {
                             val id = IntegerArgumentType.getInteger(it, "id")

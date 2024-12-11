@@ -39,9 +39,9 @@ object XBackup : ModInitializer {
     lateinit var config: Config
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
-    const val MOD_VERSION = /*$ mod_version*/ "0.3.4"
-    const val GIT_COMMIT = /*$ git_commit*/ "56ce0e2"
-    const val COMMIT_DATE = /*$ commit_date*/ "2024-12-10T00:12:23+08:00"
+    const val MOD_VERSION = /*$ mod_version*/ "0.3.6"
+    const val GIT_COMMIT = /*$ git_commit*/ "fc9161b"
+    const val COMMIT_DATE = /*$ commit_date*/ "2024-12-11T08:01:52+08:00"
     lateinit var service: BackupDatabaseService
     lateinit var server: MinecraftServer
 
@@ -215,26 +215,28 @@ object XBackup : ModInitializer {
                 service.cloudStorageProvider = OnedriveSupport(config, httpClient)
             }
             if (!config.mirrorMode) {
-                GlobalScope.launch(server.asCoroutineDispatcher()) {
-                    while (XBackup.server.running) {
-                        delay(1000)
-                        val cs = service.cloudStorageProvider
-                        if (service.activeTaskProgress != -1 &&
-                            (cs.bytesSentLastSecond > 0 || cs.bytesReceivedLastSecond > 0)
-                        ) {
-                            runCatching {
-                                server.playerManager.sendToAll(
-                                    PlayerListHeaderS2CPacket(
-                                        Text.empty(),
-                                        Text.literal("X Backup Network Stat\n")
-                                            .append(Commands.networkStatsText())
+                startCrontabJob(server)
+                if (config.cloudBackupToken != null) {
+                    GlobalScope.launch(server.asCoroutineDispatcher()) {
+                        while (XBackup.server.running) {
+                            delay(1000)
+                            val cs = service.cloudStorageProvider
+                            if (service.activeTaskProgress != -1 &&
+                                (cs.bytesSentLastSecond > 0 || cs.bytesReceivedLastSecond > 0)
+                            ) {
+                                runCatching {
+                                    server.playerManager.sendToAll(
+                                        PlayerListHeaderS2CPacket(
+                                            Text.empty(),
+                                            Text.literal("X Backup Network Stat\n")
+                                                .append(Commands.networkStatsText())
+                                        )
                                     )
-                                )
+                                }
                             }
                         }
                     }
                 }
-                startCrontabJob(server)
             }
         }
         ServerLifecycleEvents.SERVER_STOPPING.register {
