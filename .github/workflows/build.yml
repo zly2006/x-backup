@@ -51,7 +51,7 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Mod Download - 模组下载
+          name: Mod Download -
           path: build/libs
           if-no-files-found: error
           compression-level: 9
@@ -59,7 +59,7 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         uses: actions/upload-artifact@v4
         with:
-          name: CLI Tools - 命令行工具下载
+          name: CLI Tools -
           path: cli/build/libs
           if-no-files-found: error
           compression-level: 9
