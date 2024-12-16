@@ -33,7 +33,7 @@ dependencies {
     sharedLib("io.ktor:ktor-client-content-negotiation-jvm:$ktorVersion")
     sharedLib("io.ktor:ktor-client-core-jvm:$ktorVersion")
     sharedLib("io.ktor:ktor-client-cio:$ktorVersion")
-    sharedLib("io.ktor:ktor-client-apache5:$ktorVersion")
+    sharedLib("io.ktor:ktor-client-java:$ktorVersion")
     sharedLib("io.ktor:ktor-serialization-kotlinx-json-jvm:$ktorVersion")
     sharedLib(project(":api"))
     // kotlin
@@ -51,8 +51,5 @@ tasks {
             project.configurations.shadow.get()
         )
         archiveClassifier.set("all")
-
-        val relocPath = "com.github.zly2006.xbackup."
-        relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")
     }
 }

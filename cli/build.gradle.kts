@@ -49,9 +49,6 @@ tasks {
             attributes[Attributes.Name.IMPLEMENTATION_VERSION.toString()] = rootProject.property("mod.version")
             attributes[Attributes.Name.IMPLEMENTATION_TITLE.toString()] = rootProject.property("mod.name")
         }
-
-        val relocPath = "com.github.zly2006.xbackup."
-        relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")
     }
 }
 

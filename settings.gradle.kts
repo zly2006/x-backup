@@ -12,6 +12,7 @@ plugins {
 }
 
 rootProject.name = "X Backup"
+include("common")
 
 stonecutter {
     kotlinController = true
@@ -30,7 +31,6 @@ stonecutter {
     create(rootProject)
 }
 
-include("common")
 include("compat-fake-source")
 include("cli")
 include("api")

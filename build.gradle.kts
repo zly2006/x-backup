@@ -73,7 +73,11 @@ dependencies {
     }
 
     api(project(":common"))
-    shadow(project(":common", configuration = "shadow"))
+    configurations.create("compileLib") {
+        defaultDependencies {
+            add(project(":common", configuration = "shadow"))
+        }
+    }
     compileOnly(project(":compat-fake-source"))
 }
 
@@ -91,18 +95,18 @@ loom {
     }
 }
 
-val java =
+val javaVersion =
     if (stonecutter.eval(mcVersion, ">=1.20.6")) 21
     else 17
 
 java {
     withSourcesJar()
-    targetCompatibility = JavaVersion.toVersion(java)
-    sourceCompatibility = JavaVersion.toVersion(java)
+    targetCompatibility = JavaVersion.toVersion(javaVersion)
+    sourceCompatibility = JavaVersion.toVersion(javaVersion)
 }
 
 kotlin {
-    jvmToolchain(java)
+    jvmToolchain(javaVersion)
 }
 
 tasks.processResources {
@@ -143,7 +147,8 @@ tasks {
         from("LICENSE")
 
         configurations = listOf(
-            project.configurations.shadow.get()
+            project.configurations.shadow.get(),
+            project.configurations["compileLib"]
         )
         archiveClassifier.set("dev-all")
 
@@ -158,8 +163,14 @@ tasks {
             exclude("org/sqlite/native/$it/**")
         }
 
-        val relocPath = "com.github.zly2006.xbackup."
-        relocate("org.jetbrains.exposed", relocPath + "org.jetbrains.exposed")
+        val relocatePath = "com.github.zly2006.xbackup.libs."
+        listOf(
+            "org.jetbrains.exposed",
+            "org.apache",
+            "io.ktor"
+        ).forEach {
+            relocate(it, relocatePath + it)
+        }
     }
 
     remapJar {

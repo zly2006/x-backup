@@ -2,9 +2,10 @@ package com.github.zly2006.xbackup
 
 import com.github.zly2006.xbackup.Utils.broadcast
 import com.github.zly2006.xbackup.api.XBackupApi
+import com.github.zly2006.xbackup.cloud.OnedriveSupport
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import io.ktor.client.*
-import io.ktor.client.engine.apache5.*
+import io.ktor.client.engine.java.Java
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
@@ -29,6 +30,7 @@ import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteConnection
 import org.sqlite.SQLiteDataSource
 import java.io.File
+import java.net.http.HttpClient.Redirect.NORMAL
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -183,16 +185,11 @@ object XBackup : ModInitializer {
             }
             XBackupApi.setInstance(service)
             if (config.cloudBackupToken != null) {
-                val httpClient = HttpClient(Apache5) {
+                val httpClient = HttpClient(Java) {
+                    followRedirects = true
                     engine {
-                        followRedirects = true
-                        socketTimeout = 20_000
-                        connectTimeout = 20_000
-                        connectionRequestTimeout = 20_000
-                        customizeClient {
-
-                        }
-                        customizeRequest {
+                        config {
+                            this.followRedirects(NORMAL)
                         }
                     }
 
