@@ -1,3 +1,3 @@
-## 0.3.5
+## 0.3.6
 
-Cloud backups insider preview.
+Fix regional restore, now it will restore the correct region.

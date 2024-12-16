@@ -260,32 +260,26 @@ object Commands {
     private fun registerMirrorMode(dispatcher: CommandDispatcher<ServerCommandSource>) {
         dispatcher.register {
             literal("mirror") {
+                fun CommandContext<ServerCommandSource>.backup(): IBackup {
+                    val id = try {
+                        IntegerArgumentType.getInteger(this, "id")
+                    } catch (_: IllegalArgumentException) {
+                        runBlocking {
+                            XBackup.service.getLatestBackup()?.id ?: error("No backups found")
+                        }
+                    }
+                    return getBackup(id)
+                }
                 optional(argument("id", IntegerArgumentType.integer(1))) {
                     requires = checkPermission("x_backup.mirror", 0)
                     executes {
-                        val id = try {
-                            IntegerArgumentType.getInteger(it, "id")
-                        } catch (_: IllegalArgumentException) {
-                            runBlocking {
-                                XBackup.service.getLatestBackup()?.id ?: error("No backups found")
-                            }
-                        }
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        val backup = getBackup(id)
-                        doRestore(backup, it, path)
+                        doRestore(it.backup(), it, path)
                         1
                     }
                     literal("--stop").executes {
-                        val id = try {
-                            IntegerArgumentType.getInteger(it, "id")
-                        } catch (_: IllegalArgumentException) {
-                            runBlocking {
-                                XBackup.service.getLatestBackup()?.id ?: error("No backups found")
-                            }
-                        }
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        val backup = getBackup(id)
-                        doRestore(backup, it, path, forceStop = true)
+                        doRestore(it.backup(), it, path, forceStop = true)
                         1
                     }
                 }
@@ -371,16 +365,19 @@ object Commands {
                                     val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
                                     val world = it.source.world
                                     val backup = getBackup(id)
+                                    val minX = min(from.x, to.x)
+                                    val maxX = max(from.x, to.x)
+                                    val minZ = min(from.z, to.z)
+                                    val maxZ = max(from.z, to.z)
+                                    XBackup.log.info("[X Backup] Restoring block range: $minX-$minZ, $maxX-$maxZ")
+                                    XBackup.log.info("mca: r.${minX shr 9}.${minZ shr 9}.mca to r.${maxX shr 9}.${maxZ shr 9}.mca")
+                                    XBackup.log.info("mcc: r.${minX shr 4}.${minZ shr 4}.mcc to r.${maxX shr 4}.${maxZ shr 4}.mcc")
                                     doRestore(backup, it, path) {
                                         val p = path.resolve(it).normalize()
                                         if (!Utils.isFileInWorld(world, p)) {
                                             XBackup.log.debug("[X Backup] {} is not in world {}, skipping", p, world)
                                             return@doRestore false
                                         }
-                                        val minX = min(from.x, to.z)
-                                        val maxX = max(from.x, to.z)
-                                        val minZ = min(from.x, to.z)
-                                        val maxZ = max(from.x, to.z)
                                         when (p.extension) {
                                             "mca" -> {
                                                 val x = p.fileName.toString().split(".")[1].toInt()
@@ -388,7 +385,6 @@ object Commands {
                                                 if (x >= minX shr 9 && x <= maxX shr 9 && z >= minZ shr 9 && z <= maxZ shr 9) {
                                                     return@doRestore true
                                                 }
-                                                XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
                                                 false
                                             }
                                             "mcc" -> {
@@ -397,7 +393,6 @@ object Commands {
                                                 if (x >= minX shr 4 && x <= maxX shr 4 && z >= minZ shr 4 && z <= maxZ shr 4) {
                                                     return@doRestore true
                                                 }
-                                                XBackup.log.debug("[XB] {} is not in chunk range, skipping", p)
                                                 false
                                             }
                                             else -> false
