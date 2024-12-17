@@ -158,7 +158,15 @@ tasks {
         exclude("org/slf4j/**")
         exclude("_COROUTINE/**")
         exclude("org/apache/commons/**")
-        val sqliteNativeIgnore = listOf("FreeBSD", "Linux-Android")
+        val sqliteNativeIgnore = listOf(
+            "FreeBSD",
+            "Linux-Android",
+            "Linux/arm",
+            "Linux/armv6",
+            "Linux/armv7",
+            "Linux/ppc64",
+            "Windows/armv7"
+        )
         sqliteNativeIgnore.forEach {
             exclude("org/sqlite/native/$it/**")
         }

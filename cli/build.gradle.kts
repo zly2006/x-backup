@@ -51,10 +51,3 @@ tasks {
         }
     }
 }
-
-tasks.create<proguard.gradle.ProGuardTask>("proguard") {
-    configuration(file("proguard.pro"))
-    injars(tasks.shadowJar.get().outputs)
-    ignorewarnings()
-    outjars("build/libs/xbackup-all-proguard.jar")
-}

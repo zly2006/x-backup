@@ -44,7 +44,7 @@ jobs:
         if: ${{ runner.os != 'Windows' }}
         run: chmod +x ./gradlew
       - name: Build
-        run: ./gradlew chiseledBuild cli:shadowJar
+        run: ./gradlew "Refresh active project" chiseledBuild cli:shadowJar
       - name: Stop gradle daemon
         run: ./gradlew --stop
       - name: capture build artifacts (mods)
