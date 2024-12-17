@@ -1,3 +1,2 @@
-## 0.3.6
+## 0.3.7
 
-Fix regional restore, now it will restore the correct region.
