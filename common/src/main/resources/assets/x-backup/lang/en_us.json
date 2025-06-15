@@ -48,5 +48,10 @@
   "xb.gui.backups.restore_check_failed": "This backup is corrupted, cannot restore it!",
   "xb.gui.backups.restored": "Backup restored successfully!",
   "xb.gui.backups.title": "World Backups",
-  "xb.gui.no_polylib": "PolyLib is not installed, please install it to use the GUI."
+  "xb.gui.no_polylib": "PolyLib is not installed, please install it to use the GUI.",
+  "xb.gui.restore.title": "Restore Completed",
+  "xb.gui.restore.id": "Backup #%s",
+  "xb.gui.restore.comment": "Comment: %s",
+  "xb.gui.restore.close": "Back to Title",
+  "xb.gui.restore.reopen": "Reopen Save"
 }

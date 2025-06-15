@@ -717,7 +717,7 @@ class BackupDatabaseService(
         BackupTable.selectAll().count().toInt()
     }
 
-    fun close() {
+    override fun close() {
         syncExecutor.close()
         TransactionManager.closeAndUnregister(database)
     }

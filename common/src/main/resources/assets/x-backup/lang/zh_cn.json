@@ -48,5 +48,10 @@
   "xb.gui.backups.restore_check_failed": "此备份已损坏，无法回档！",
   "xb.gui.backups.restored": "成功还原备份",
   "xb.gui.backups.title": "备份列表",
-  "xb.gui.no_polylib": "未安装 PolyLib，请安装后使用 GUI 功能。"
+  "xb.gui.no_polylib": "未安装 PolyLib，请安装后使用 GUI 功能。",
+  "xb.gui.restore.title": "回档完成",
+  "xb.gui.restore.id": "备份 #%s",
+  "xb.gui.restore.comment": "备注: %s",
+  "xb.gui.restore.close": "返回标题界面",
+  "xb.gui.restore.reopen": "重新打开存档"
 }

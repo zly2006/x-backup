@@ -6,6 +6,7 @@ import com.github.zly2006.xbackup.Utils.save
 import com.github.zly2006.xbackup.Utils.send
 import com.github.zly2006.xbackup.Utils.setAutoSaving
 import com.github.zly2006.xbackup.api.IBackup
+import com.github.zly2006.xbackup.gui.RestoreInfoScreen
 import com.github.zly2006.xbackup.ktdsl.register
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
@@ -739,6 +740,8 @@ object Commands {
                         XBackup.isBusy = false
                         XBackup.restoring = false
                         it.finishRestore()
+                    } else if (!forceStop) {
+                        RestoreInfoScreen.open(backup, path)
                     }
                 }
             }
