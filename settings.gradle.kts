@@ -4,6 +4,10 @@ pluginManagement {
         gradlePluginPortal()
         maven("https://maven.fabricmc.net/")
         maven("https://maven.kikugie.dev/releases/")
+        maven {
+            name = "Kikugie Snapshot"
+            url = uri("https://maven.kikugie.dev/snapshots")
+        }
     }
 }
 

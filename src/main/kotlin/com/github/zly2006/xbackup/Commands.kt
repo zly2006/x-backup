@@ -323,12 +323,12 @@ object Commands {
                     requires = checkPermission("x_backup.mirror", 0)
                     executes {
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        doRestore(it.backup(), it, path)
+                        doRestore(it.backup(), it, path, forceStop = true)
                         1
                     }
-                    literal("--stop").executes {
+                    literal("--restart").executes {
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-                        doRestore(it.backup(), it, path, forceStop = true)
+                        doRestore(it.backup(), it, path, forceStop = false)
                         1
                     }
                 }
@@ -432,7 +432,7 @@ object Commands {
                                     XBackup.log.info("[X Backup] Restoring block range: $minX-$minZ, $maxX-$maxZ")
                                     XBackup.log.info("mca: r.${minX shr 9}.${minZ shr 9}.mca to r.${maxX shr 9}.${maxZ shr 9}.mca")
                                     XBackup.log.info("mcc: r.${minX shr 4}.${minZ shr 4}.mcc to r.${maxX shr 4}.${maxZ shr 4}.mcc")
-                                    doRestore(backup, it, path) {
+                                    doRestore(backup, it, path, forceStop = true) {
                                         val p = path.resolve(it).normalize()
                                         if (!Utils.isFileInWorld(world, p)) {
                                             XBackup.log.debug("[X Backup] {} is not in world {}, skipping", p, world)
@@ -464,11 +464,11 @@ object Commands {
                                 }
                             }
                         }
-                        literal("--stop").executes {
+                        literal("--restart").executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
                             val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
                             val backup = getBackup(id)
-                            doRestore(backup, it, path, forceStop = true)
+                            doRestore(backup, it, path, forceStop = false)
                             1
                         }
                         literal("--force") {
@@ -477,7 +477,7 @@ object Commands {
                                 val id = IntegerArgumentType.getInteger(it, "id")
                                 val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
                                 val backup = getBackup(id)
-                                doRestore(backup, it, path, recheck = false)
+                                doRestore(backup, it, path, recheck = false, forceStop = true)
                                 1
                             }
                         }
@@ -485,7 +485,7 @@ object Commands {
                         val id = IntegerArgumentType.getInteger(it, "id")
                         val path = it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
                         val backup = getBackup(id)
-                        doRestore(backup, it, path)
+                        doRestore(backup, it, path, forceStop = true)
                         1
                     }
                 }
