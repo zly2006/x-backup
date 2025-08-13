@@ -1,3 +1,4 @@
-## 0.3.12
+## 0.3.14
 
-fix: ignore DistantHorizons db files default; limit backup processors
+Refactor restart logic. Auto restart is disabled by default now because of
+plenty of mod incompatibility.

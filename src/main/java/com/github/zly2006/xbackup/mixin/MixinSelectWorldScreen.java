@@ -3,8 +3,8 @@ package com.github.zly2006.xbackup.mixin;
 import com.github.zly2006.xbackup.BackupDatabaseService;
 import com.github.zly2006.xbackup.XBackup;
 //? if poly_lib {
-/*import com.github.zly2006.xbackup.gui.BackupsGui;
-*///?}
+import com.github.zly2006.xbackup.gui.BackupsGui;
+//?}
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -29,7 +29,7 @@ public class MixinSelectWorldScreen extends Screen {
     }
 
     //? if poly_lib {
-    /*@Unique
+    @Unique
     ButtonWidget buttonWidget;
 
     @Shadow
@@ -83,5 +83,5 @@ public class MixinSelectWorldScreen extends Screen {
             }
         }
     }
-    *///?}
+    //?}
 }

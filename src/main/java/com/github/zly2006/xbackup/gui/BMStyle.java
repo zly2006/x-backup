@@ -1,7 +1,7 @@
 package com.github.zly2006.xbackup.gui;
 //? if poly_lib {
 
-/*import net.creeperhost.polylib.client.PolyPalette;
+import net.creeperhost.polylib.client.PolyPalette;
 import net.creeperhost.polylib.client.modulargui.elements.*;
 import net.creeperhost.polylib.client.modulargui.lib.Assembly;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Axis;
@@ -62,4 +62,4 @@ public class BMStyle {
         }
     }
 }
-*///?}
+//?}

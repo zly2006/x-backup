@@ -1,7 +1,7 @@
 package com.github.zly2006.xbackup.gui;
 
 //? if poly_lib {
-/*import net.creeperhost.polylib.client.PolyPalette;
+import net.creeperhost.polylib.client.PolyPalette;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.elements.GuiButton;
 import net.creeperhost.polylib.client.modulargui.elements.GuiElement;
@@ -19,9 +19,9 @@ import static net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint.
 import static net.creeperhost.polylib.client.modulargui.lib.geometry.GeoParam.*;
 import static net.minecraft.util.Formatting.GREEN;
 
-/^*
+/**
  * Created by brandon3055 on 14/10/2023
- ^/
+ */
 @Deprecated //TODO Add a more generic version of this to PolyLib
 public class OptionDialog extends GuiElement<OptionDialog> implements BackgroundRender {
 
@@ -97,21 +97,21 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
         render.toolTipBackground(xMin(), yMin(), xSize(), ySize(), 0xFF100010, 0xFF5000FF, 0xFF28007f);
     }
 
-    /^*
+    /**
      * Opens a simple dialog that can be used to display information with an "Ok" button that will close the dialog.
      *
      * @param parent     Can be any gui element (Will just be used to get the root element)
      * @param dialogText
-     ^/
+     */
     public static OptionDialog simpleInfoDialog(@NotNull GuiParent<?> parent, Text dialogText) {
         return simpleInfoDialog(parent, dialogText, () ->{});
     }
 
-    /^*
+    /**
      * Opens a simple dialog that can be used to display information with an "Ok" button that will close the dialog.
      *
      * @param parent Can be any gui element (Will just be used to get the root element)
-     ^/
+     */
     public static OptionDialog simpleInfoDialog(@NotNull GuiParent<?> parent, Text dialogText, Runnable onAccepted) {
         OptionDialog dialog = new OptionDialog(parent.getModularGui().getRoot(),
                 dialogText,
@@ -124,4 +124,4 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
     }
 }
 
-*///?}
+//?}

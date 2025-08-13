@@ -1,7 +1,7 @@
 package com.github.zly2006.xbackup.gui
 
 //? if poly_lib {
-/*import com.github.zly2006.xbackup.BackupDatabaseService
+import com.github.zly2006.xbackup.BackupDatabaseService
 import kotlinx.coroutines.runBlocking
 import net.creeperhost.polylib.client.modulargui.ModularGui
 import net.creeperhost.polylib.client.modulargui.ModularGuiScreen
@@ -163,7 +163,11 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
             if (stream != null) {
                 leftOffset = ySize().toInt() - 2
                 val resourceLocation = Identifier.of("xbackup", "tmp/${backup.id}/icon.png")
-                val texture = NativeImageBackedTexture(NativeImage.read(stream.readBytes()))
+                //? if < 1.21.5 {
+                /*val texture = NativeImageBackedTexture(NativeImage.read(stream.readBytes()))
+                *///?} else {
+                val texture = NativeImageBackedTexture({ "xb_temp" } ,NativeImage.read(stream.readBytes()))
+                //?}
                 texture.upload()
                 mc().textureManager.registerTexture(resourceLocation, texture)
 
@@ -240,6 +244,6 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
         }
     }
 }
-*///?} else {
-class BackupsGui
-//?}
+//?} else {
+/*class BackupsGui
+*///?}
