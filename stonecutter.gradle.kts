@@ -35,13 +35,6 @@ subprojects {
     }
 }
 
-// Builds every version into `build/libs/{mod.version}/`
-stonecutter registerChiseled tasks.register("chiseledBuild", stonecutter.chiseled) {
-    group = "project"
-    ofTask("buildAndCollect")
-
-    dependsOn(project(":cli").tasks.named("shadowJar"))
-}
 
 /*
 // Publishes every version
@@ -51,10 +44,9 @@ stonecutter registerChiseled tasks.register("chiseledPublishMods", stonecutter.c
 }
 */
 
-stonecutter configureEach {
-    swap("mod_version", "\"${property("mod.version")}\"")
+stonecutter parameters {
+    swap("mod_version", "\"${node.project.property("mod.version")}\"")
     swap("git_commit", "\"${grgit.head().abbreviatedId}\"")
     swap("commit_date", "\"${grgit.head().dateTime.toString().substringBefore("[")}\"")
-    const("poly_lib", project.property("deps.poly_lib").toString().isNotEmpty())
-    dependency("fapi", project.property("deps.fabric_api").toString())
+    const("poly_lib", node.project.property("deps.poly_lib").toString().isNotEmpty())
 }

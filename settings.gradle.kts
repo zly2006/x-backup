@@ -12,7 +12,7 @@ pluginManagement {
 }
 
 plugins {
-    id("dev.kikugie.stonecutter") version "0.5.2"
+    id("dev.kikugie.stonecutter") version "0.7.7-beta.2"
 }
 
 rootProject.name = "X Backup"

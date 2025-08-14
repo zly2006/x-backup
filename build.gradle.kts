@@ -183,7 +183,7 @@ tasks {
 
     remapJar {
         dependsOn(shadowJar)
-        input.set(shadowJar.get().archiveFile)
+        inputFile.set(shadowJar.get().archiveFile)
     }
 }
 
@@ -225,27 +225,3 @@ publishMods {
 //        optional("polylib")
 //    }
 }
-
-/*
-publishing {
-    repositories {
-        maven("...") {
-            name = "..."
-            credentials(PasswordCredentials::class.java)
-            authentication {
-                create<BasicAuthentication>("basic")
-            }
-        }
-    }
-
-    publications {
-        create<MavenPublication>("mavenJava") {
-            groupId = "${property("mod.group")}.${mod.id}"
-            artifactId = mod.version
-            version = mcVersion
-
-            from(components["java"])
-        }
-    }
-}
-*/
