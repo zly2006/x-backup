@@ -125,23 +125,6 @@ object Commands {
 
     fun register(dispatcher: CommandDispatcher<ServerCommandSource>) {
         dispatcher.register {
-            literal("1") {
-                executes {
-                    print(1)
-                    1
-                }
-            }
-
-            literal("1") {
-                requires = { false }
-                executes {
-                    println(11)
-                    1
-                }
-            }
-
-        }
-        dispatcher.register {
             literal("xb") {
                 literal("status") {
                     fun basicStatus(source: ServerCommandSource) {
