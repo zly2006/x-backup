@@ -1,12 +1,11 @@
 plugins {
     id("dev.kikugie.stonecutter")
-    id("fabric-loom") version "1.10.1" apply false
+    id("fabric-loom") version "1.11-SNAPSHOT" apply false
 
     kotlin("jvm") version "2.0.21" apply false
     kotlin("plugin.serialization") version "2.0.0" apply false
     id("io.github.goooler.shadow") version "8.1.7" apply false
     base
-    id("dev.kikugie.j52j") version "2.0" apply false
     id("me.modmuss50.mod-publish-plugin") version "0.8.4" apply false
     id("org.ajoberstar.grgit") version "5.0.0-rc.3"
 }
