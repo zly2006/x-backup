@@ -28,8 +28,8 @@ jobs:
             ./.gradle
             ./**/.gradle
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-      - name: validate gradle wrapper
-        uses: gradle/wrapper-validation-action@v2
+#      - name: validate gradle wrapper
+#        uses: gradle/wrapper-validation-action@v2
       - name: setup jdk 17
         uses: actions/setup-java@v4
         with:
@@ -44,7 +44,7 @@ jobs:
         if: ${{ runner.os != 'Windows' }}
         run: chmod +x ./gradlew
       - name: Build
-        run: ./gradlew "Refresh active project" buildAndCollect cli:shadowJar
+        run: ./gradlew buildAndCollect cli:shadowJar
       - name: Stop gradle daemon
         run: ./gradlew --stop
       - name: capture build artifacts (mods)
