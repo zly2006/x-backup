@@ -86,8 +86,10 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
     public void close() {
         getParent().removeChild(this);
     }
-
-    @Override
+    
+    //? if < 1.21.9 {
+    /*@Override
+    *///?}
     public boolean keyPressed(int key, int scancode, int modifiers) {
         return true;
     }

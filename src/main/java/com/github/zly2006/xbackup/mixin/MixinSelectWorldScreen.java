@@ -10,6 +10,9 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.world.SelectWorldScreen;
 import net.minecraft.client.gui.screen.world.WorldListWidget;
+//? if >= 1.21.6 {
+import net.minecraft.client.gui.tooltip.Tooltip;
+//?}
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -40,22 +43,34 @@ public class MixinSelectWorldScreen extends Screen {
             at = @At("RETURN")
     )
     private void postInit(CallbackInfo ci) {
+        //? if >=1.21.6 {
+        Tooltip backupTooltip;
+        if (FabricLoader.getInstance().isModLoaded("polylib")) {
+            backupTooltip = Tooltip.of(Text.translatable("xb.button.backups"));
+        } else {
+            backupTooltip = Tooltip.of(Text.translatable("xb.gui.no_polylib").formatted(Formatting.RED));
+        }
+        //?}
         buttonWidget = ButtonWidget.builder(Text.literal("回"),
                 (button) -> {
-                    if (!FabricLoader.getInstance().isModLoaded("polylib")) {
-                        return;
-                    }
-                    if (levelList.getSelectedAsOptional().isPresent()) {
-                        String name = levelList.getSelectedAsOptional().get().level.getName();
-                        BackupDatabaseService service = new BackupDatabaseService(
-                                Path.of("saves").toAbsolutePath().normalize(),
-                                XBackup.INSTANCE.getDatabaseFromWorld(Path.of("saves", name)),
-                                Path.of("").toAbsolutePath().resolve(XBackup.config.getBlobPath()).normalize(),
-                                XBackup.config
-                        );
-                        BackupsGui.Companion.open(service, Path.of("saves", name));
-                    }
-                }).dimensions(this.width / 2 + 160, this.height - 28, 20, 20).build();
+            if (!FabricLoader.getInstance().isModLoaded("polylib")) {
+                return;
+            }
+            if (levelList.getSelectedAsOptional().isPresent()) {
+                String name = levelList.getSelectedAsOptional().get().level.getName();
+                BackupDatabaseService service = new BackupDatabaseService(
+                        Path.of("saves").toAbsolutePath().normalize(),
+                        XBackup.INSTANCE.getDatabaseFromWorld(Path.of("saves", name)),
+                        Path.of("").toAbsolutePath().resolve(XBackup.config.getBlobPath()).normalize(),
+                        XBackup.config
+                );
+                BackupsGui.Companion.open(service, Path.of("saves", name));
+            }
+        }).dimensions(this.width / 2 + 160, this.height - 28, 20, 20)
+        //? if >= 1.21.6 {
+        .tooltip(backupTooltip)
+        //?}
+        .build();
         buttonWidget.active = levelList.getSelectedAsOptional().isPresent();
         this.addDrawableChild(buttonWidget);
     }
@@ -70,7 +85,8 @@ public class MixinSelectWorldScreen extends Screen {
         }
     }
 
-    @Inject(
+    //? if < 1.21.6 {
+    /*@Inject(
             method = "render",
             at = @At("RETURN")
     )
@@ -83,5 +99,6 @@ public class MixinSelectWorldScreen extends Screen {
             }
         }
     }
+    *///?}
     //?}
 }
