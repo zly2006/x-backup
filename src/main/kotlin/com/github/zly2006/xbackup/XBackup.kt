@@ -77,7 +77,7 @@ object XBackup : ModInitializer {
 
     fun loadConfig() {
         try {
-            config = (if (configPath.exists()) Json.decodeFromString(configPath.readText())
+            config = (if (configPath.exists()) json.decodeFromString(configPath.readText())
             else Config())
             config.language = I18n.setLanguage(config.language)
         } catch (e: Exception) {
@@ -92,6 +92,7 @@ object XBackup : ModInitializer {
         encodeDefaults = true
         prettyPrint = true
         allowTrailingComma = true
+        ignoreUnknownKeys = true
     }
 
     fun saveConfig() {
@@ -146,7 +147,11 @@ object XBackup : ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             this.server = server
 
-            server.commandManager.executeWithPrefix(XBackup.server!!.commandSource ,"1")
+            //? if >= 1.21.11 {
+            server.commandManager.parseAndExecute(XBackup.server!!.commandSource, "1")
+            //?} else {
+            server.commandManager.executeWithPrefix(XBackup.server!!.commandSource, "1")
+            //?}
             kotlin.runCatching {
                 // sync client language to the integrated server
                 config.language = I18n.setLanguage(MinecraftClient.getInstance().options.language)
@@ -160,7 +165,7 @@ object XBackup : ModInitializer {
             val database = getDatabaseFromWorld(worldPath)
             if (config.mirrorMode) {
                 val sourceConfig = kotlin.runCatching {
-                    Json.decodeFromStream<Config>(
+                    json.decodeFromStream<Config>(
                         Path(
                             config.mirrorFrom!!,
                             "config",

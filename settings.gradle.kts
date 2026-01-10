@@ -13,6 +13,7 @@ pluginManagement {
 
 plugins {
     id("dev.kikugie.stonecutter") version "0.7.7-beta.2"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
 }
 
 rootProject.name = "X Backup"
@@ -33,6 +34,7 @@ stonecutter {
             "1.21.5",
             "1.21.6",
             "1.21.9",
+            "1.21.11",
         )
     }
     create(rootProject)
