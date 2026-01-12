@@ -20,6 +20,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToStream
 import kotlinx.serialization.json.put
 import me.lucko.fabric.api.permissions.v0.Permissions
+//? if >=1.21.11 {
+import net.minecraft.command.DefaultPermissions
+//?}
 import net.minecraft.command.argument.ColumnPosArgumentType
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.ClickEvent
@@ -744,7 +747,18 @@ object Commands {
             Permissions.check(source, perm, defaultLevel)
         } catch (e: NoClassDefFoundError) {
             // If the API is not available, just return true
+            //? if >=1.21.11 {
+            val permission = when {
+                defaultLevel <= 0 -> null
+                defaultLevel <= 1 -> DefaultPermissions.MODERATORS
+                defaultLevel <= 2 -> DefaultPermissions.GAMEMASTERS
+                defaultLevel <= 3 -> DefaultPermissions.ADMINS
+                else -> DefaultPermissions.OWNERS
+            }
+            permission == null || source.permissions.hasPermission(permission)
+            //?} else {
             source.hasPermissionLevel(defaultLevel)
+            //?}
         }
     }
 }
