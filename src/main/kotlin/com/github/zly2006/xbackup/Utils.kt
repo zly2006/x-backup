@@ -30,8 +30,8 @@ object Utils {
     inline fun MinecraftServer.save() {
         saveAll(false, false, true)
         //? if >=1.21.11 {
-        syncChunkWrites()
-        //?}
+        /*syncChunkWrites()
+        *///?}
     }
 
     inline fun MinecraftServer.finishRestore() {

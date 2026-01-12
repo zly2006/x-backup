@@ -88,8 +88,8 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
     }
     
     //? if < 1.21.9 {
-    /*@Override
-    *///?}
+    @Override
+    //?}
     public boolean keyPressed(int key, int scancode, int modifiers) {
         return true;
     }

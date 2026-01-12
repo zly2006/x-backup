@@ -42,9 +42,9 @@ object XBackup : ModInitializer {
     lateinit var config: Config
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
-    const val MOD_VERSION = /*$ mod_version*/ "0.3.15"
-    const val GIT_COMMIT = /*$ git_commit*/ "3e6be7e"
-    const val COMMIT_DATE = /*$ commit_date*/ "2025-12-01T16:51:46+08:00"
+    const val MOD_VERSION = /*$ mod_version*/ "0.3.16"
+    const val GIT_COMMIT = /*$ git_commit*/ "72cc36c"
+    const val COMMIT_DATE = /*$ commit_date*/ "2026-01-12T11:45:52+08:00"
     var _service: BackupDatabaseService? = null
     val service get() = _service!!
     var server: MinecraftServer? = null
@@ -148,8 +148,8 @@ object XBackup : ModInitializer {
             this.server = server
 
             //? if >= 1.21.11 {
-            server.commandManager.parseAndExecute(XBackup.server!!.commandSource, "1")
-            //?} else {
+            /*server.commandManager.parseAndExecute(XBackup.server!!.commandSource, "1")
+            *///?} else {
             server.commandManager.executeWithPrefix(XBackup.server!!.commandSource, "1")
             //?}
             kotlin.runCatching {
