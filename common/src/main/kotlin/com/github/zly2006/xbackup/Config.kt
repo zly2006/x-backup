@@ -84,6 +84,24 @@ class Config {
     @SerialName("independent_blobs")
     val independentBlobs = false
 
+    @SerialName("database_type")
+    var databaseType = "sqlite"
+
+    @SerialName("mysql_host")
+    var mysqlHost = "localhost"
+
+    @SerialName("mysql_port")
+    var mysqlPort = 3306
+
+    @SerialName("mysql_database")
+    var mysqlDatabase = "x_backup"
+
+    @SerialName("mysql_username")
+    var mysqlUsername = "root"
+
+    @SerialName("mysql_password")
+    var mysqlPassword = ""
+
     @SerialName("backup_interval")
     var backupInterval = 10800
 

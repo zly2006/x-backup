@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory
 import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteConnection
 import org.sqlite.SQLiteDataSource
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import java.io.File
 import java.net.http.HttpClient.Redirect.NORMAL
 import java.nio.file.Files
@@ -259,17 +261,36 @@ object XBackup : ModInitializer {
     }
 
     fun getDatabaseFromWorld(worldPath: Path?): Database {
-        val database = Database.connect(
-            SQLiteDataSource(
-                SQLiteConfig().apply {
-                    enforceForeignKeys(true)
-                    setCacheSize(100_000)
-                    setJournalMode(SQLiteConfig.JournalMode.WAL)
+        val database = when (config.databaseType.lowercase()) {
+            "mysql" -> {
+                val hikariConfig = HikariConfig().apply {
+                    jdbcUrl = "jdbc:mysql://${config.mysqlHost}:${config.mysqlPort}/${config.mysqlDatabase}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+                    username = config.mysqlUsername
+                    password = config.mysqlPassword
+                    driverClassName = "com.mysql.cj.jdbc.Driver"
+                    maximumPoolSize = 10
+                    minimumIdle = 2
+                    idleTimeout = 600000
+                    connectionTimeout = 30000
+                    maxLifetime = 1800000
                 }
-            ).apply {
-                url = "jdbc:sqlite:$worldPath/x_backup.db"
+                Database.connect(HikariDataSource(hikariConfig))
             }
-        )
+            "sqlite", "" -> {
+                Database.connect(
+                    SQLiteDataSource(
+                        SQLiteConfig().apply {
+                            enforceForeignKeys(true)
+                            setCacheSize(100_000)
+                            setJournalMode(SQLiteConfig.JournalMode.WAL)
+                        }
+                    ).apply {
+                        url = "jdbc:sqlite:$worldPath/x_backup.db"
+                    }
+                )
+            }
+            else -> throw IllegalArgumentException("Unsupported database type: ${config.databaseType}. Supported types: sqlite, mysql")
+        }
         TransactionManager.defaultDatabase = database
         return database
     }

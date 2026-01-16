@@ -6,6 +6,8 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Database
 import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteDataSource
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import java.text.SimpleDateFormat
 import kotlin.io.path.*
 
@@ -18,18 +20,6 @@ suspend fun main() {
         return
     }
     val worldRoot = Path("").absolute().normalize()
-
-    val database = Database.connect(
-        SQLiteDataSource(
-            SQLiteConfig().apply {
-                enforceForeignKeys(true)
-                setCacheSize(100_000)
-                setJournalMode(SQLiteConfig.JournalMode.WAL)
-            }
-        ).apply {
-            url = "jdbc:sqlite:x_backup.db"
-        }
-    )
 
     var gameRoot = worldRoot
     while (!gameRoot.resolve("config").isDirectory()) {
@@ -45,6 +35,37 @@ suspend fun main() {
         }
     } else {
         println("Warning: Config file not found, using default config")
+    }
+
+    val database = when (config.databaseType.lowercase()) {
+        "mysql" -> {
+            val hikariConfig = HikariConfig().apply {
+                jdbcUrl = "jdbc:mysql://${config.mysqlHost}:${config.mysqlPort}/${config.mysqlDatabase}"
+                username = config.mysqlUsername
+                password = config.mysqlPassword
+                driverClassName = "com.mysql.cj.jdbc.Driver"
+                maximumPoolSize = 10
+                minimumIdle = 2
+                idleTimeout = 600000
+                connectionTimeout = 30000
+                maxLifetime = 1800000
+            }
+            Database.connect(HikariDataSource(hikariConfig))
+        }
+        "sqlite", "" -> {
+            Database.connect(
+                SQLiteDataSource(
+                    SQLiteConfig().apply {
+                        enforceForeignKeys(true)
+                        setCacheSize(100_000)
+                        setJournalMode(SQLiteConfig.JournalMode.WAL)
+                    }
+                ).apply {
+                    url = "jdbc:sqlite:x_backup.db"
+                }
+            )
+        }
+        else -> throw IllegalArgumentException("Unsupported database type: ${config.databaseType}. Supported types: sqlite, mysql")
     }
 
     val blobDir = gameRoot.resolve(config.blobPath).normalize()
