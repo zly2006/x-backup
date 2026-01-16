@@ -264,7 +264,7 @@ object XBackup : ModInitializer {
         val database = when (config.databaseType.lowercase()) {
             "mysql" -> {
                 val hikariConfig = HikariConfig().apply {
-                    jdbcUrl = "jdbc:mysql://${config.mysqlHost}:${config.mysqlPort}/${config.mysqlDatabase}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+                    jdbcUrl = "jdbc:mysql://${config.mysqlHost}:${config.mysqlPort}/${config.mysqlDatabase}"
                     username = config.mysqlUsername
                     password = config.mysqlPassword
                     driverClassName = "com.mysql.cj.jdbc.Driver"
@@ -325,22 +325,24 @@ object XBackup : ModInitializer {
                                     put("mod_ver", MOD_VERSION)
                                 }
                             )
-                            val localBackup = File("x_backup.db.back")
-                            localBackup.delete()
-                            try {
-                                (service.database.connector().connection as? SQLiteConnection)?.createStatement()
-                                    ?.execute("VACUUM INTO '$localBackup';")
-                            } catch (e: Exception) {
-                                log.error("Error backing up database", e)
+                            if (config.databaseType.lowercase() != "mysql") {
+                                val localBackup = File("x_backup.db.back")
+                                localBackup.delete()
+                                try {
+                                    (service.database.connector().connection as? SQLiteConnection)?.createStatement()
+                                        ?.execute("VACUUM INTO '$localBackup';")
+                                } catch (e: Exception) {
+                                    log.error("Error backing up database", e)
+                                }
+                                Files.move(
+                                    localBackup.toPath(),
+                                    Path("xb.backups")
+                                        .resolve(backId.toString())
+                                        .resolve("x_backup.db")
+                                        .createParentDirectories(),
+                                    StandardCopyOption.REPLACE_EXISTING
+                                )
                             }
-                            Files.move(
-                                localBackup.toPath(),
-                                Path("xb.backups")
-                                    .resolve(backId.toString())
-                                    .resolve("x_backup.db")
-                                    .createParentDirectories(),
-                                StandardCopyOption.REPLACE_EXISTING
-                            )
                             // delete old backups in ./xb.backups, keep the latest 5
                             val backups = Path("xb.backups").listDirectoryEntries().filter { it.isDirectory() }
                             backups.sortedByDescending { it.getLastModifiedTime().toMillis() }
