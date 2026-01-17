@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory
 import org.sqlite.SQLiteConfig
 import org.sqlite.SQLiteConnection
 import org.sqlite.SQLiteDataSource
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import java.io.File
 import java.net.http.HttpClient.Redirect.NORMAL
 import java.nio.file.Files
@@ -259,17 +261,36 @@ object XBackup : ModInitializer {
     }
 
     fun getDatabaseFromWorld(worldPath: Path?): Database {
-        val database = Database.connect(
-            SQLiteDataSource(
-                SQLiteConfig().apply {
-                    enforceForeignKeys(true)
-                    setCacheSize(100_000)
-                    setJournalMode(SQLiteConfig.JournalMode.WAL)
+        val database = when (config.databaseType.lowercase()) {
+            "mysql" -> {
+                val hikariConfig = HikariConfig().apply {
+                    jdbcUrl = "jdbc:mysql://${config.mysqlHost}:${config.mysqlPort}/${config.mysqlDatabase}"
+                    username = config.mysqlUsername
+                    password = config.mysqlPassword
+                    driverClassName = "com.mysql.cj.jdbc.Driver"
+                    maximumPoolSize = 10
+                    minimumIdle = 2
+                    idleTimeout = 600000
+                    connectionTimeout = 30000
+                    maxLifetime = 1800000
                 }
-            ).apply {
-                url = "jdbc:sqlite:$worldPath/x_backup.db"
+                Database.connect(HikariDataSource(hikariConfig))
             }
-        )
+            "sqlite", "" -> {
+                Database.connect(
+                    SQLiteDataSource(
+                        SQLiteConfig().apply {
+                            enforceForeignKeys(true)
+                            setCacheSize(100_000)
+                            setJournalMode(SQLiteConfig.JournalMode.WAL)
+                        }
+                    ).apply {
+                        url = "jdbc:sqlite:$worldPath/x_backup.db"
+                    }
+                )
+            }
+            else -> throw IllegalArgumentException("Unsupported database type: ${config.databaseType}. Supported types: sqlite, mysql")
+        }
         TransactionManager.defaultDatabase = database
         return database
     }
@@ -304,27 +325,34 @@ object XBackup : ModInitializer {
                                     put("mod_ver", MOD_VERSION)
                                 }
                             )
-                            val localBackup = File("x_backup.db.back")
-                            localBackup.delete()
-                            try {
-                                (service.database.connector().connection as? SQLiteConnection)?.createStatement()
-                                    ?.execute("VACUUM INTO '$localBackup';")
-                            } catch (e: Exception) {
-                                log.error("Error backing up database", e)
+                            if (config.databaseType.lowercase() != "mysql") {
+                                val localBackup = File("x_backup.db.back")
+                                localBackup.delete()
+                                try {
+                                    (service.database.connector().connection as? SQLiteConnection)?.createStatement()
+                                        ?.execute("VACUUM INTO '$localBackup';")
+                                } catch (e: Exception) {
+                                    log.error("Error backing up database", e)
+                                }
+                                Files.move(
+                                    localBackup.toPath(),
+                                    Path("xb.backups")
+                                        .resolve(backId.toString())
+                                        .resolve("x_backup.db")
+                                        .createParentDirectories(),
+                                    StandardCopyOption.REPLACE_EXISTING
+                                )
                             }
-                            Files.move(
-                                localBackup.toPath(),
-                                Path("xb.backups")
-                                    .resolve(backId.toString())
-                                    .resolve("x_backup.db")
-                                    .createParentDirectories(),
-                                StandardCopyOption.REPLACE_EXISTING
-                            )
                             // delete old backups in ./xb.backups, keep the latest 5
-                            val backups = Path("xb.backups").listDirectoryEntries().filter { it.isDirectory() }
-                            backups.sortedByDescending { it.getLastModifiedTime().toMillis() }
-                                .drop(5)
-                                .forEach { it.toFile().deleteRecursively() }
+                            if (config.databaseType.lowercase() != "mysql") {
+                                val backupsDir = Path("xb.backups")
+                                if (backupsDir.exists()) {
+                                    val backups = backupsDir.listDirectoryEntries().filter { it.isDirectory() }
+                                    backups.sortedByDescending { it.getLastModifiedTime().toMillis() }
+                                        .drop(5)
+                                        .forEach { it.toFile().deleteRecursively() }
+                                }
+                            }
                             server.broadcast(
                                 Utils.translate(
                                     "message.xb.scheduled_backup_finished",

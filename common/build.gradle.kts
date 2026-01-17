@@ -28,6 +28,8 @@ dependencies {
     sharedLib("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
     sharedLib("org.jetbrains.exposed:exposed-json:$exposed_version")
     sharedLib("org.xerial:sqlite-jdbc:3.46.0.0")
+    sharedLib("com.mysql:mysql-connector-j:9.5.0")
+    sharedLib("com.zaxxer:HikariCP:7.0.2")
     sharedLib("org.apache.commons:commons-compress:1.26.0")
     val ktorVersion = property("deps.ktor_version") as String
     sharedLib("io.ktor:ktor-client-content-negotiation-jvm:$ktorVersion")

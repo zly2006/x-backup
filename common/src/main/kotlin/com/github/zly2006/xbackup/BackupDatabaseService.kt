@@ -55,12 +55,20 @@ class BackupDatabaseService(
         }
 
         transaction {
-            SchemaUtils.createMissingTablesAndColumns(
-                BackupEntryTable,
-                BackupTable,
-                BackupEntryBackupTable,
-                withLogs = false
-            )
+            try {
+                SchemaUtils.createMissingTablesAndColumns(
+                    BackupEntryTable,
+                    BackupTable,
+                    BackupEntryBackupTable,
+                    withLogs = false
+                )
+            } catch (e: org.jetbrains.exposed.exceptions.ExposedSQLException) {
+                e.cause?.message?.contains("MODIFY", ignoreCase = true)?.let {
+                    if (!it) {
+                        throw e
+                    }
+                }
+            }
         }
     }
 
