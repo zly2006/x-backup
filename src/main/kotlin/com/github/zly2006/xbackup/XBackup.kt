@@ -344,10 +344,15 @@ object XBackup : ModInitializer {
                                 )
                             }
                             // delete old backups in ./xb.backups, keep the latest 5
-                            val backups = Path("xb.backups").listDirectoryEntries().filter { it.isDirectory() }
-                            backups.sortedByDescending { it.getLastModifiedTime().toMillis() }
-                                .drop(5)
-                                .forEach { it.toFile().deleteRecursively() }
+                            if (config.databaseType.lowercase() != "mysql") {
+                                val backupsDir = Path("xb.backups")
+                                if (backupsDir.exists()) {
+                                    val backups = backupsDir.listDirectoryEntries().filter { it.isDirectory() }
+                                    backups.sortedByDescending { it.getLastModifiedTime().toMillis() }
+                                        .drop(5)
+                                        .forEach { it.toFile().deleteRecursively() }
+                                }
+                            }
                             server.broadcast(
                                 Utils.translate(
                                     "message.xb.scheduled_backup_finished",
