@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = MinecraftServer.class, priority = 1001)
 public class MixinServer {
     @Inject(
-            method = "save",
+            method = "saveAllChunks",
             at = @At("HEAD"),
             cancellable = true
     )
@@ -22,7 +22,7 @@ public class MixinServer {
     }
 
     @Inject(
-            method = "saveAll",
+            method = "saveEverything",
             at = @At("HEAD"),
             cancellable = true
     )
@@ -33,7 +33,7 @@ public class MixinServer {
     }
 
     @Inject(
-            method = "shutdown",
+            method = "stopServer",
             at = @At("TAIL")
     )
     private void onShutdown(CallbackInfo ci) {

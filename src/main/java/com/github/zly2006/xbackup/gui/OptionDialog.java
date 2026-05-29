@@ -1,6 +1,6 @@
 package com.github.zly2006.xbackup.gui;
 
-//? if poly_lib {
+
 import net.creeperhost.polylib.client.PolyPalette;
 import net.creeperhost.polylib.client.modulargui.ModularGui;
 import net.creeperhost.polylib.client.modulargui.elements.GuiButton;
@@ -12,12 +12,12 @@ import net.creeperhost.polylib.client.modulargui.lib.Constraints;
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint;
 import net.creeperhost.polylib.client.modulargui.lib.geometry.GuiParent;
-import net.minecraft.screen.ScreenTexts;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 import static net.creeperhost.polylib.client.modulargui.lib.geometry.Constraint.*;
 import static net.creeperhost.polylib.client.modulargui.lib.geometry.GeoParam.*;
-import static net.minecraft.util.Formatting.GREEN;
+import static net.minecraft.ChatFormatting.GREEN;
 
 /**
  * Created by brandon3055 on 14/10/2023
@@ -27,7 +27,7 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
 
     private final GuiButton[] buttons;
 
-    public OptionDialog(@NotNull GuiParent<?> parent, Text title, Text... buttonLabels) {
+    public OptionDialog(@NotNull GuiParent<?> parent, Component title, Component... buttonLabels) {
         super(parent);
         this.setOpaque(true);
         int buttonCount = buttonLabels.length;
@@ -63,7 +63,7 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
         constrain(HEIGHT, literal(60));
     }
 
-    public static GuiButton button(GuiElement<?> parent, Text label) {
+    public static GuiButton button(GuiElement<?> parent, Component label) {
         GuiButton button = new GuiButton(parent);
         GuiRectangle background = new GuiRectangle(button)
                 .fill(() -> button.isDisabled() ? 0x88202020 : (button.isMouseOver() || button.toggleState() || button.isPressed() ? 0xFF909090 : 0xFF505050));
@@ -87,9 +87,7 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
         getParent().removeChild(this);
     }
     
-    //? if < 1.21.9 {
-    @Override
-    //?}
+
     public boolean keyPressed(int key, int scancode, int modifiers) {
         return true;
     }
@@ -97,7 +95,7 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
     @Override
     public void renderBehind(GuiRender render, double mouseX, double mouseY, float partialTicks) {
         render.toolTipBackground(xMin(), yMin(), xSize(), ySize(), 0xFF100010, 0xFF5000FF, 0xFF28007f);
-    }
+     }
 
     /**
      * Opens a simple dialog that can be used to display information with an "Ok" button that will close the dialog.
@@ -105,7 +103,7 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
      * @param parent     Can be any gui element (Will just be used to get the root element)
      * @param dialogText
      */
-    public static OptionDialog simpleInfoDialog(@NotNull GuiParent<?> parent, Text dialogText) {
+    public static OptionDialog simpleInfoDialog(@NotNull GuiParent<?> parent, Component dialogText) {
         return simpleInfoDialog(parent, dialogText, () ->{});
     }
 
@@ -114,16 +112,16 @@ public class OptionDialog extends GuiElement<OptionDialog> implements Background
      *
      * @param parent Can be any gui element (Will just be used to get the root element)
      */
-    public static OptionDialog simpleInfoDialog(@NotNull GuiParent<?> parent, Text dialogText, Runnable onAccepted) {
+    public static OptionDialog simpleInfoDialog(@NotNull GuiParent<?> parent, Component dialogText, Runnable onAccepted) {
         OptionDialog dialog = new OptionDialog(parent.getModularGui().getRoot(),
                 dialogText,
-                ScreenTexts.OK.copy().formatted(GREEN))
+                CommonComponents.GUI_OK.copy().withStyle(GREEN))
                 .onButtonPress(0, onAccepted);
         
-        int height = parent.font().getWrappedLinesHeight(dialogText, 190);
+        int height = parent.font().wordWrapHeight(dialogText, 190);
         dialog.constrain(HEIGHT, literal(45 + height));
         return dialog;
     }
 }
 
-//?}
+

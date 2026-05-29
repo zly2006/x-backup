@@ -1,6 +1,7 @@
-accessWidener v1 named
+accessWidener v1 official
 accessible field net/minecraft/server/MinecraftServer running Z
 accessible field net/minecraft/server/MinecraftServer stopped Z
 accessible method net/minecraft/server/MinecraftServer runServer ()V
-accessible field net/minecraft/network/ClientConnection disconnected Z
-accessible field net/minecraft/client/gui/screen/world/WorldListWidget$WorldEntry level Lnet/minecraft/world/level/storage/LevelSummary;
+accessible field net/minecraft/network/Connection disconnectionHandled Z
+accessible field net/minecraft/client/gui/screens/worldselection/WorldSelectionList$WorldListEntry summary Lnet/minecraft/world/level/storage/LevelSummary;
+accessible field net/minecraft/commands/CommandSourceStack source Lnet/minecraft/commands/CommandSource;

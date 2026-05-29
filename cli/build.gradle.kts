@@ -1,19 +1,10 @@
 import java.util.jar.Attributes
 
 plugins {
-    id("io.github.goooler.shadow") version "8.1.7"
+    java
+    kotlin("jvm") version "2.3.21"
+    id("com.gradleup.shadow") version "9.0.0"
 }
-
-buildscript {
-    repositories {
-        mavenCentral()
-    }
-    dependencies {
-        classpath("com.guardsquare:proguard-gradle:7.6.0")
-    }
-}
-
-apply(plugin = "java")
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17

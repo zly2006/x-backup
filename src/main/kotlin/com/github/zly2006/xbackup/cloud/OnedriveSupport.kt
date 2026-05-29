@@ -20,7 +20,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import net.minecraft.text.ClickEvent
+import net.minecraft.network.chat.ClickEvent
 import org.jetbrains.exposed.sql.update
 import org.slf4j.LoggerFactory
 import java.net.URI
@@ -129,18 +129,11 @@ class OnedriveSupport(
                             if (err?.startsWith("freePlan:") == true) {
                                 service.activeTaskProgress = -1
                                 service.activeTask = "Failed to get upload session: Free plan limit"
-                                XBackup.server?.broadcast(Utils.translate("message.xb.error.free_plan_limit").styled {
-                                    it.withClickEvent(
-                                        //? if >=1.21.5 {
-                                        ClickEvent.OpenUrl(URI("https://redenmc.com/x-backup/plans"))
-                                        //?} else {
-                                        /*ClickEvent(
-                                            ClickEvent.Action.OPEN_URL,
-                                            "https://redenmc.com/x-backup/plans"
-                                        )
-                                        *///?}
-                                    )
-                                })
+                                 XBackup.server?.broadcast(Utils.translate("message.xb.error.free_plan_limit").withStyle {
+                                     it.withClickEvent(
+                                         ClickEvent.OpenUrl(URI("https://redenmc.com/x-backup/plans"))
+                                     )
+                                 })
                                 throw DontRetryException(IllegalStateException("Free plan limit"))
                             }
                         }

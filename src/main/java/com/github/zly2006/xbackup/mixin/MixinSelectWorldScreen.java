@@ -2,20 +2,16 @@ package com.github.zly2006.xbackup.mixin;
 
 import com.github.zly2006.xbackup.BackupDatabaseService;
 import com.github.zly2006.xbackup.XBackup;
-//? if poly_lib {
 import com.github.zly2006.xbackup.gui.BackupsGui;
-//?}
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.world.SelectWorldScreen;
-import net.minecraft.client.gui.screen.world.WorldListWidget;
-//? if >= 1.21.6 {
-/*import net.minecraft.client.gui.tooltip.Tooltip;
-*///?}
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
+import net.minecraft.client.gui.screens.worldselection.WorldSelectionList;
+import net.minecraft.world.level.storage.LevelSummary;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -27,37 +23,34 @@ import java.nio.file.Path;
 
 @Mixin(SelectWorldScreen.class)
 public class MixinSelectWorldScreen extends Screen {
-    protected MixinSelectWorldScreen(Text title) {
+    protected MixinSelectWorldScreen(Component title) {
         super(title);
     }
 
-    //? if poly_lib {
     @Unique
-    ButtonWidget buttonWidget;
+    Button buttonWidget;
 
     @Shadow
-    private WorldListWidget levelList;
+    private WorldSelectionList list;
 
     @Inject(
             method = "init",
             at = @At("RETURN")
     )
     private void postInit(CallbackInfo ci) {
-        //? if >=1.21.6 {
-        /*Tooltip backupTooltip;
+        Tooltip backupTooltip;
         if (FabricLoader.getInstance().isModLoaded("polylib")) {
-            backupTooltip = Tooltip.of(Text.translatable("xb.button.backups"));
+            backupTooltip = Tooltip.create(Component.translatable("xb.button.backups"));
         } else {
-            backupTooltip = Tooltip.of(Text.translatable("xb.gui.no_polylib").formatted(Formatting.RED));
+            backupTooltip = Tooltip.create(Component.translatable("xb.gui.no_polylib").withStyle(ChatFormatting.RED));
         }
-        *///?}
-        buttonWidget = ButtonWidget.builder(Text.literal("回"),
+        buttonWidget = Button.builder(Component.literal("回"),
                 (button) -> {
             if (!FabricLoader.getInstance().isModLoaded("polylib")) {
                 return;
             }
-            if (levelList.getSelectedAsOptional().isPresent()) {
-                String name = levelList.getSelectedAsOptional().get().level.getName();
+            if (list.getSelectedOpt().isPresent()) {
+                String name = list.getSelectedOpt().get().getLevelSummary().getLevelId();
                 BackupDatabaseService service = new BackupDatabaseService(
                         Path.of("saves").toAbsolutePath().normalize(),
                         XBackup.INSTANCE.getDatabaseFromWorld(Path.of("saves", name)),
@@ -66,39 +59,20 @@ public class MixinSelectWorldScreen extends Screen {
                 );
                 BackupsGui.Companion.open(service, Path.of("saves", name));
             }
-        }).dimensions(this.width / 2 + 160, this.height - 28, 20, 20)
-        //? if >= 1.21.6 {
-        /*.tooltip(backupTooltip)
-        *///?}
+        }).bounds(this.width / 2 + 160, this.height - 28, 20, 20)
+        .tooltip(backupTooltip)
         .build();
-        buttonWidget.active = levelList.getSelectedAsOptional().isPresent();
-        this.addDrawableChild(buttonWidget);
+        buttonWidget.active = list.getSelectedOpt().isPresent();
+        this.addRenderableWidget(buttonWidget);
     }
 
     @Inject(
-            method = "worldSelected",
+            method = "updateButtonStatus",
             at = @At("RETURN")
     )
-    private void worldSelected(CallbackInfo ci) {
+    private void onUpdateButtonStatus(LevelSummary summary, CallbackInfo ci) {
         if (buttonWidget != null) {
-            buttonWidget.active = levelList.getSelectedAsOptional().isPresent();
+            buttonWidget.active = list.getSelectedOpt().isPresent();
         }
     }
-
-    //? if < 1.21.6 {
-    @Inject(
-            method = "render",
-            at = @At("RETURN")
-    )
-    private void render(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if (buttonWidget != null && buttonWidget.isHovered()) {
-            if (FabricLoader.getInstance().isModLoaded("polylib")) {
-                setTooltip(Text.translatable("xb.button.backups"));
-            } else {
-                setTooltip(Text.translatable("xb.gui.no_polylib").formatted(Formatting.RED));
-            }
-        }
-    }
-    //?}
-    //?}
 }

@@ -1,11 +1,13 @@
 plugins {
     `maven-publish`
-    id("fabric-loom")
-    kotlin("jvm")
-    kotlin("plugin.serialization")
-    id("io.github.goooler.shadow") version "8.1.7"
-    id("me.modmuss50.mod-publish-plugin")
+    id("net.fabricmc.fabric-loom") version "1.16-SNAPSHOT"
+    kotlin("jvm") version "2.3.21"
+    kotlin("plugin.serialization") version "2.3.21"
+    id("com.gradleup.shadow") version "9.0.0"
+    id("me.modmuss50.mod-publish-plugin") version "0.5.1"
 }
+
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 
 class ModData {
     val id = property("mod.id").toString()
@@ -20,8 +22,11 @@ class ModDependencies {
 
 val mod = ModData()
 val deps = ModDependencies()
-val mcVersion = stonecutter.current.version
+val mcVersion = "26.1.2"
 val mcDep = property("mod.mc_dep").toString()
+
+// MC 26.1.2 is unobfuscated — no remapping needed, use shadowJar directly
+val jarTaskProvider = tasks.named<AbstractArchiveTask>("shadowJar")
 
 version = "${mod.version}+$mcVersion"
 group = mod.group
@@ -29,6 +34,19 @@ base { archivesName.set(mod.id) }
 
 loom {
     accessWidenerPath = rootProject.file("src/main/resources/xb.shared.accesswidener")
+}
+
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+    configurations.all {
+        resolutionStrategy {
+            force("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+            force("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2")
+            force("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.10.2")
+        }
+    }
 }
 
 repositories {
@@ -43,28 +61,25 @@ repositories {
 }
 
 dependencies {
+    println("CONFIGS: " + configurations.map { it.name })
     fun fapi(vararg modules: String) = modules.forEach {
-        modImplementation(fabricApi.module(it, deps["fabric_api"]))
+        implementation(fabricApi.module(it, deps["fabric_api"]))
     }
 
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.6.10")
 
     minecraft("com.mojang:minecraft:$mcVersion")
-    mappings("net.fabricmc:yarn:$mcVersion+build.${deps["yarn_build"]}:v2")
-    modImplementation("net.fabricmc:fabric-loader:${deps["fabric_loader"]}")
-    modImplementation("net.fabricmc:fabric-language-kotlin:${deps["kotlin_loader_version"]}")
+    // MC 26.1.2 is unobfuscated — no Yarn mappings needed
+    implementation("net.fabricmc:fabric-loader:${deps["fabric_loader"]}")
+    implementation("net.fabricmc:fabric-language-kotlin:${deps["kotlin_loader_version"]}")
     fapi(
-        // Add modules from https://github.com/FabricMC/fabric
         "fabric-lifecycle-events-v1",
-        "fabric-resource-loader-v0"
+        "fabric-resource-loader-v0",
+        "fabric-command-api-v2"
     )
 
-    if (stonecutter.eval(stonecutter.current.version, ">=1.20")) {
-        fapi("fabric-command-api-v2")
-    }
-
     if (deps["poly_lib"].isNotEmpty()) {
-        modCompileOnly("net.creeperhost:polylib-fabric:${deps["poly_lib"]}") {
+        compileOnly("maven.modrinth:polylib:2.0.6") {
             exclude(group = "net.fabricmc.fabric-api")
             exclude(group = "dev.architectury")
             exclude(group = "teamreborn")
@@ -72,17 +87,16 @@ dependencies {
     }
 
     api(project(":common"))
-    configurations.create("compileLib") {
-        defaultDependencies {
-            add(project(":common", configuration = "shadow"))
-        }
-    }
+    configurations.create("compileLib")
+    add("compileLib", project(":common"))
+    add("compileLib", project(":api"))
+    add("compileLib", project(":common", configuration = "shadow"))
     compileOnly(project(":compat-fake-source"))
 }
 
 loom {
     decompilers {
-        get("vineflower").apply { // Adds names to lambdas - useful for mixins
+        get("vineflower").apply {
             options.put("mark-corresponding-synthetics", "1")
         }
     }
@@ -94,9 +108,8 @@ loom {
     }
 }
 
-val javaVersion =
-    if (stonecutter.eval(mcVersion, ">=1.20.6")) 21
-    else 17
+// MC 26.1.2 requires Java 25
+val javaVersion = 25
 
 java {
     withSourcesJar()
@@ -126,7 +139,6 @@ tasks.processResources {
     dependsOn(project(":common").tasks.processResources)
     outputs.upToDateWhen { false }
     doLast {
-        // copying this is for dev only, int here is a shadowJar task
         copy {
             from(project(":common").tasks.processResources.get().outputs.files)
             into(outputs.files.first())
@@ -136,7 +148,7 @@ tasks.processResources {
 
 tasks.register<Copy>("buildAndCollect") {
     group = "build"
-    from(tasks.remapJar.get().archiveFile)
+    from(jarTaskProvider.flatMap { it.archiveFile })
     into(rootProject.layout.buildDirectory.file("libs/${mod.version}"))
     dependsOn("build")
 }
@@ -149,7 +161,7 @@ tasks {
             project.configurations.shadow.get(),
             project.configurations["compileLib"]
         )
-        archiveClassifier.set("dev-all")
+        archiveClassifier.set("")
 
         exclude("kotlin/**", "kotlinx/**", "javax/**")
         exclude("org/checkerframework/**", "org/intellij/**", "org/jetbrains/annotations/**")
@@ -179,48 +191,30 @@ tasks {
             relocate(it, relocatePath + it)
         }
     }
-
-    remapJar {
-        dependsOn(shadowJar)
-        inputFile.set(shadowJar.get().archiveFile)
-    }
 }
 
-
 publishMods {
-    file = tasks.remapJar.get().archiveFile
+    file = jarTaskProvider.flatMap { it.archiveFile }
     displayName = "${mod.name} ${mod.version} for $mcVersion"
     version = "${mod.version}+$mcVersion"
     changelog = rootProject.file("CHANGELOG.md").readText()
     type = STABLE
     modLoaders.add("fabric")
 
-//    dryRun = providers.environmentVariable("MODRINTH_TOKEN")
-//        .getOrNull() == null || providers.environmentVariable("CURSEFORGE_TOKEN").getOrNull() == null
-
     modrinth {
         projectId = property("publish.modrinth").toString()
         accessToken = providers.environmentVariable("MODRINTH_TOKEN")
-        minecraftVersions.addAll(
-            property("mod.mc_targets").toString().split(" ")
-                .filter { it.isNotBlank() }
-                .plus(mcVersion)
-                .distinct()
-        )
+        minecraftVersions.add(mcVersion)
         requires("fabric-api", "fabric-language-kotlin")
         optional("polylib")
     }
-
-//    curseforge {
-//        projectId = property("publish.curseforge").toString()
-//        accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
-//        minecraftVersions.addAll(
-//            property("mod.mc_targets").toString().split(" ")
-//                .filter { it.isNotBlank() }
-//                .plus(mcVersion)
-//                .distinct()
-//        )
-//        requires("fabric-api", "fabric-language-kotlin")
-//        optional("polylib")
-//    }
 }
+
+tasks.jar {
+    enabled = false
+}
+
+tasks.assemble {
+    dependsOn(tasks.shadowJar)
+}
+

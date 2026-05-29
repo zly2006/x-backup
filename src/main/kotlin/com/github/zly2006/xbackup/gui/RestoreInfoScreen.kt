@@ -2,45 +2,41 @@ package com.github.zly2006.xbackup.gui
 
 import com.github.zly2006.xbackup.XBackup
 import com.github.zly2006.xbackup.api.IBackup
-import net.minecraft.client.MinecraftClient
-import net.minecraft.client.gui.DrawContext
-import net.minecraft.client.gui.screen.Screen
-import net.minecraft.client.gui.widget.ButtonWidget
-import net.minecraft.text.Text
+import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.screens.Screen
+import net.minecraft.client.gui.components.Button
+import net.minecraft.network.chat.Component
 import java.nio.file.Path
-import kotlin.io.path.name
 
-class RestoreInfoScreen(private val backup: IBackup, private val worldRoot: Path) : Screen(Text.translatable("xb.gui.restore.title")) {
-    private lateinit var reopenButton: ButtonWidget
+
+class RestoreInfoScreen(private val backup: IBackup, private val worldRoot: Path) : Screen(Component.translatable("xb.gui.restore.title")) {
+    private lateinit var reopenButton: Button
 
     override fun init() {
-        reopenButton = addDrawableChild(
-            ButtonWidget.builder(Text.translatable("xb.gui.restore.reopen")) {
+        reopenButton = addRenderableWidget(
+            Button.builder(Component.translatable("xb.gui.restore.reopen")) {
                 reopenWorld()
-            }.dimensions(width / 2 - 75, height - 52, 150, 20).build()
+            }.bounds(width / 2 - 75, height - 52, 150, 20).build()
         )
-        addDrawableChild(
-            ButtonWidget.builder(Text.translatable("xb.gui.restore.close")) {
-                client?.setScreen(null)
-            }.dimensions(width / 2 - 75, height - 28, 150, 20).build()
+        addRenderableWidget(
+            Button.builder(Component.translatable("xb.gui.restore.close")) {
+                minecraft?.setScreen(null)
+            }.bounds(width / 2 - 75, height - 28, 150, 20).build()
         )
     }
 
-    override fun render(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
-        //? if >= 1.20.4 {
-        renderBackground(context, mouseX, mouseY, delta)
-        //?} else {
-        /*renderBackground(context)
-        *///?}
-        super.render(context, mouseX, mouseY, delta)
-        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, 20, 0xFFFFFF)
+    override fun extractRenderState(context: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
+        extractBackground(context, mouseX, mouseY, delta)
+        super.extractRenderState(context, mouseX, mouseY, delta)
+        context.centeredText(font, title, width / 2, 20, 0xFFFFFF)
         var y = height / 2 - 20
-        val idText = Text.translatable("xb.gui.restore.id", backup.id)
-        context.drawCenteredTextWithShadow(textRenderer, idText, width / 2, y, 0xFFFFFF)
+        val idText = Component.translatable("xb.gui.restore.id", backup.id)
+        context.centeredText(font, idText, width / 2, y, 0xFFFFFF)
         y += 12
         if (backup.comment.isNotEmpty()) {
-            val comment = Text.translatable("xb.gui.restore.comment", backup.comment)
-            context.drawCenteredTextWithShadow(textRenderer, comment, width / 2, y, 0xFFFFFF)
+            val comment = Component.translatable("xb.gui.restore.comment", backup.comment)
+            context.centeredText(font, comment, width / 2, y, 0xFFFFFF)
         }
 
         val progress = XBackup.service.activeTaskProgress
@@ -54,29 +50,25 @@ class RestoreInfoScreen(private val backup: IBackup, private val worldRoot: Path
             if (w > 0) {
                 context.fill(x + 1, yBar + 1, x + w - 1, yBar + barHeight - 1, 0xFF00FF00.toInt())
             }
-            context.drawCenteredTextWithShadow(textRenderer, Text.literal("$progress%"), width / 2, yBar - 10, 0xFFFFFF)
+            context.centeredText(font, Component.literal("$progress%"), width / 2, yBar - 10, 0xFFFFFF)
         }
     }
 
     companion object {
         fun open(backup: IBackup, worldRoot: Path) {
-            val client = MinecraftClient.getInstance()
+            val client = Minecraft.getInstance()
             client.execute { client.setScreen(RestoreInfoScreen(backup, worldRoot)) }
         }
     }
 
     private fun reopenWorld() {
-        val client = MinecraftClient.getInstance()
+        val client = Minecraft.getInstance()
         client.setScreen(null)
         runCatching {
-            val loader = client.createIntegratedServerLoader()
-            //? if >= 1.20.4 {
-            loader.start(worldRoot.normalize().name) {
-                this.close()
+            val loader = client.createWorldOpenFlows()
+            loader.openWorld(worldRoot.normalize().fileName.toString()) {
+                // Callback (can be empty)
             }
-            //?} else {
-            /*loader.start(this, worldRoot.normalize().name)
-            *///?}
         }.onFailure { XBackup.log.error("Failed to reopen world", it) }
     }
 }

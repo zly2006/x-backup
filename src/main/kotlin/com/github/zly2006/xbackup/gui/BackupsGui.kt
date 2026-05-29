@@ -1,6 +1,5 @@
 package com.github.zly2006.xbackup.gui
 
-//? if poly_lib {
 import com.github.zly2006.xbackup.BackupDatabaseService
 import kotlinx.coroutines.runBlocking
 import net.creeperhost.polylib.client.modulargui.ModularGui
@@ -12,12 +11,12 @@ import net.creeperhost.polylib.client.modulargui.lib.GuiProvider
 import net.creeperhost.polylib.client.modulargui.lib.GuiRender
 import net.creeperhost.polylib.client.modulargui.lib.geometry.*
 import net.creeperhost.polylib.client.modulargui.sprite.Material
-import net.minecraft.client.MinecraftClient
-import net.minecraft.client.texture.NativeImage
-import net.minecraft.client.texture.NativeImageBackedTexture
-import net.minecraft.text.Text
-import net.minecraft.util.Formatting
-import net.minecraft.util.Identifier
+import net.minecraft.client.Minecraft
+import com.mojang.blaze3d.platform.NativeImage
+import net.minecraft.client.renderer.texture.DynamicTexture
+import net.minecraft.network.chat.Component
+import net.minecraft.ChatFormatting
+import net.minecraft.resources.Identifier
 import java.nio.file.Path
 import java.text.SimpleDateFormat
 
@@ -32,7 +31,7 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
     override fun buildGui(gui: ModularGui) {
         gui.renderScreenBackground(false)
         gui.initFullscreenGui()
-        gui.guiTitle = Text.translatable("xb.gui.backups.title")
+        gui.guiTitle = Component.translatable("xb.gui.backups.title")
 
         val root = gui.root
 
@@ -49,14 +48,14 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
             .constrain(GeoParam.TOP, Constraint.relative(root[GeoParam.TOP], 20.0))
             .constrain(GeoParam.BOTTOM, Constraint.relative(root[GeoParam.BOTTOM], -24.0))
 
-        val back = BMStyle.Flat.button(root, Text.translatable("xb.button.back_arrow"))
+        val back = BMStyle.Flat.button(root, Component.translatable("xb.button.back_arrow"))
             .onPress { gui.mc().setScreen(gui.parentScreen) }
             .constrain(GeoParam.BOTTOM, Constraint.relative(listBackground!![GeoParam.TOP], -4.0))
             .constrain(GeoParam.LEFT, Constraint.match(listBackground[GeoParam.LEFT]))
             .constrain(GeoParam.WIDTH, Constraint.literal(50.0))
             .constrain(GeoParam.HEIGHT, Constraint.literal(12.0))
 
-        val restore = BMStyle.Flat.buttonPrimary(root, Text.translatable("xb.button.restore_backup"))
+        val restore = BMStyle.Flat.buttonPrimary(root, Component.translatable("xb.button.restore_backup"))
             .setDisabled { selected == null }
             .onPress { restoreSelected(gui) }
             .constrain(GeoParam.TOP, Constraint.relative(listBackground[GeoParam.BOTTOM], 5.0))
@@ -64,7 +63,7 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
             .constrain(GeoParam.WIDTH, Constraint.literal(150.0))
             .constrain(GeoParam.HEIGHT, Constraint.literal(14.0))
 
-        val delete = BMStyle.Flat.buttonCaution(root, Text.translatable("xb.button.delete_backup"))
+        val delete = BMStyle.Flat.buttonCaution(root, Component.translatable("xb.button.delete_backup"))
             .onPress { deleteSelected(gui) }
             .setDisabled { selected == null }
             .constrain(GeoParam.TOP, Constraint.relative(listBackground[GeoParam.BOTTOM], 5.0))
@@ -123,8 +122,8 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
         if (!service.check(selected!!)) {
             OptionDialog.simpleInfoDialog(
                 gui,
-                Text.translatable("xb.gui.backups.restore_check_failed")
-                    .formatted(Formatting.RED)
+                Component.translatable("xb.gui.backups.restore_check_failed")
+                    .withStyle(ChatFormatting.RED)
             )
             return
         }
@@ -134,8 +133,8 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
         selected = null
         OptionDialog.simpleInfoDialog(
             gui,
-            Text.translatable("xb.gui.backups.restored")
-                .formatted(Formatting.GREEN)
+            Component.translatable("xb.gui.backups.restored")
+                .withStyle(ChatFormatting.GREEN)
         )
     }
 
@@ -162,14 +161,10 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
             }
             if (stream != null) {
                 leftOffset = ySize().toInt() - 2
-                val resourceLocation = Identifier.of("xbackup", "tmp/${backup.id}/icon.png")
-                //? if < 1.21.5 {
-                /*val texture = NativeImageBackedTexture(NativeImage.read(stream.readBytes()))
-                *///?} else {
-                val texture = NativeImageBackedTexture({ "xb_temp" } ,NativeImage.read(stream.readBytes()))
-                //?}
+                val resourceLocation = Identifier.fromNamespaceAndPath("xbackup", "tmp/${backup.id}/icon.png")
+                val texture = DynamicTexture({ "xb_temp" } ,NativeImage.read(stream.readBytes()))
                 texture.upload()
-                mc().textureManager.registerTexture(resourceLocation, texture)
+                mc().textureManager.register(resourceLocation, texture)
 
                 GuiTexture(this) { Material.fromRawTexture(resourceLocation) }
                     .constrain(GeoParam.TOP, Constraint.relative(this[GeoParam.TOP], 1.0))
@@ -179,7 +174,7 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
                 leftOffset += 3
             }
 
-            val name = GuiText(this, Text.literal("#" + backup.id).formatted(Formatting.AQUA))
+            val name = GuiText(this, Component.literal("#" + backup.id).withStyle(ChatFormatting.AQUA))
                 .setShadow(false)
                 .setAlignment(Align.LEFT)
                 .constrain(GeoParam.TOP, Constraint.relative(get(GeoParam.TOP), 3.0))
@@ -189,7 +184,7 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
 
             val created = GuiText(
                 this,
-                Text.literal(DATE_TIME_FORMAT.format(backup.created)).formatted(Formatting.GRAY)
+                Component.literal(DATE_TIME_FORMAT.format(backup.created)).withStyle(ChatFormatting.GRAY)
             )
                 .setShadow(false)
                 .setAlignment(Align.LEFT)
@@ -198,24 +193,24 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
                 .constrain(GeoParam.RIGHT, Constraint.relative(get(GeoParam.RIGHT), -2.0))
                 .constrain(GeoParam.HEIGHT, Constraint.literal(8.0))
 
-            val provText: Text = Text.literal("Backup")
+            val provText: Component = Component.literal("Backup")
             val provider = GuiText(this, provText)
-                .setTooltip(Text.literal("Backup"))
+                .setTooltip(Component.literal("Backup"))
                 .setShadow(false)
                 .setAlignment(Align.RIGHT)
                 .constrain(GeoParam.TOP, Constraint.relative(get(GeoParam.TOP), 3.0))
-                .constrain(GeoParam.WIDTH, Constraint.literal(font().getWidth(provText).toDouble()))
+                .constrain(GeoParam.WIDTH, Constraint.literal(font().width(provText).toDouble()))
                 .constrain(GeoParam.RIGHT, Constraint.relative(get(GeoParam.RIGHT), -2.0))
                 .constrain(GeoParam.HEIGHT, Constraint.literal(8.0))
 
-            val info = GuiTextList(this, listOf(Text.literal(backup.comment)))
+            val info = GuiTextList(this, listOf(Component.literal(backup.comment)))
                 .setHorizontalAlign(Align.MIN)
                 .constrain(GeoParam.LEFT, Constraint.relative(get(GeoParam.LEFT), leftOffset.toDouble()))
                 .constrain(GeoParam.RIGHT, Constraint.relative(get(GeoParam.RIGHT), -2.0))
                 .constrain(GeoParam.BOTTOM, Constraint.relative(get(GeoParam.BOTTOM), -2.0))
                 .autoHeight()
 
-            setTooltip(Text.literal(backup.comment))
+            setTooltip(Component.literal(backup.comment))
         }
 
         override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
@@ -240,10 +235,7 @@ class BackupsGui(private val service: BackupDatabaseService, val worldRoot: Path
     companion object {
         private val DATE_TIME_FORMAT = SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss")
         fun open(service: BackupDatabaseService, worldRoot: Path) {
-            MinecraftClient.getInstance().setScreen(ModularGuiScreen(BackupsGui(service, worldRoot)))
+            Minecraft.getInstance().setScreen(ModularGuiScreen(BackupsGui(service, worldRoot)))
         }
     }
 }
-//?} else {
-/*class BackupsGui
-*///?}

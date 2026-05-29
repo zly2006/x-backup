@@ -1,7 +1,10 @@
 @file:Suppress("PropertyName")
 
 plugins {
-    id("io.github.goooler.shadow") version "8.1.7"
+    `java-library`
+    kotlin("jvm") version "2.3.21"
+    kotlin("plugin.serialization") version "2.3.21"
+    id("com.gradleup.shadow") version "9.0.0"
 }
 
 val exposed_version = property("deps.exposed_version") as String
@@ -37,10 +40,10 @@ dependencies {
     sharedLib("io.ktor:ktor-serialization-kotlinx-json-jvm:$ktorVersion")
     sharedLib(project(":api"))
     // kotlin
-    api("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-    api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.0")
-    api("org.jetbrains.kotlinx:atomicfu:0.26.0")
+    api("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.3.21")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    api("org.jetbrains.kotlinx:atomicfu:0.27.0")
 }
 
 tasks {

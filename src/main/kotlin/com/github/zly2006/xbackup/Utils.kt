@@ -1,37 +1,35 @@
 package com.github.zly2006.xbackup
 
 import net.minecraft.server.MinecraftServer
-import net.minecraft.server.command.ServerCommandSource
-import net.minecraft.server.world.ServerWorld
-import net.minecraft.text.MutableText
-import net.minecraft.text.Text
-import net.minecraft.util.WorldSavePath
-import net.minecraft.world.dimension.DimensionType
+import net.minecraft.commands.CommandSourceStack
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.network.chat.MutableComponent
+import net.minecraft.network.chat.Component
+import net.minecraft.world.level.storage.LevelResource
+import net.minecraft.world.level.dimension.DimensionType
 import java.nio.file.Path
 
 @Suppress("NOTHING_TO_INLINE")
 object Utils {
-    inline fun translate(key: String, vararg args: Any): MutableText {
-        return Text.translatableWithFallback(
+    inline fun translate(key: String, vararg args: Any): MutableComponent {
+        return Component.translatableWithFallback(
             key,
             I18n[key],
             *args
         )
     }
 
-    inline fun ServerCommandSource.send(text: Text) {
-        sendMessage(text)
+    inline fun CommandSourceStack.send(text: Component) {
+        sendSystemMessage(text)
     }
 
     inline fun MinecraftServer.setAutoSaving(value: Boolean) {
-        worlds.forEach { it.savingDisabled = !value }
+        allLevels.forEach { it.noSave = !value }
     }
 
     inline fun MinecraftServer.save() {
-        saveAll(false, false, true)
-        //? if >=1.21.11 {
-        /*syncChunkWrites()
-        *///?}
+        saveEverything(false, false, true)
+        forceSynchronousWrites()
     }
 
     inline fun MinecraftServer.finishRestore() {
@@ -45,14 +43,14 @@ object Utils {
         runServer()
     }
 
-    inline fun MinecraftServer.broadcast(text: Text) {
-        playerManager.broadcast(text, false)
+    inline fun MinecraftServer.broadcast(text: Component) {
+        playerList.broadcastSystemMessage(text, false)
     }
 
-    fun isFileInWorld(world: ServerWorld, p: Path): Boolean {
-        val path = DimensionType.getSaveDirectory(
-            world.registryKey,
-            world.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
+    fun isFileInWorld(world: ServerLevel, p: Path): Boolean {
+        val path = DimensionType.getStorageFolder(
+            world.dimension(),
+            world.server.getWorldPath(LevelResource.ROOT).toAbsolutePath()
         ).normalize()
         return p.normalize().startsWith(path)
     }

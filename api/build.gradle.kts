@@ -1,3 +1,8 @@
+plugins {
+    `java-library`
+    kotlin("jvm") version "2.3.21"
+}
+
 group = "io.github.zly2006"
 version = rootProject.version
 

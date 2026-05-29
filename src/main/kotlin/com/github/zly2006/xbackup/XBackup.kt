@@ -17,13 +17,12 @@ import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.loader.api.FabricLoader
-import net.minecraft.client.MinecraftClient
-import net.minecraft.network.packet.s2c.play.PlayerListHeaderS2CPacket
+import net.minecraft.client.Minecraft
+import net.minecraft.network.protocol.game.ClientboundTabListPacket
 import net.minecraft.server.MinecraftServer
-import net.minecraft.server.command.ServerCommandSource
-import net.minecraft.text.Text
-import net.minecraft.util.Util
-import net.minecraft.util.WorldSavePath
+import net.minecraft.commands.CommandSourceStack
+import net.minecraft.network.chat.Component
+import net.minecraft.world.level.storage.LevelResource
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.slf4j.LoggerFactory
@@ -42,9 +41,9 @@ object XBackup : ModInitializer {
     lateinit var config: Config
     private val configPath = FabricLoader.getInstance().configDir.resolve("x-backup.config.json")
     val log = LoggerFactory.getLogger("XBackup")!!
-    const val MOD_VERSION = /*$ mod_version*/ "0.3.16"
-    const val GIT_COMMIT = /*$ git_commit*/ "72cc36c"
-    const val COMMIT_DATE = /*$ commit_date*/ "2026-01-12T11:45:52+08:00"
+    const val MOD_VERSION = "0.4.0"
+    const val GIT_COMMIT = "72cc36c"
+    const val COMMIT_DATE = "2026-01-12T11:45:52+08:00"
     var _service: BackupDatabaseService? = null
     val service get() = _service!!
     var server: MinecraftServer? = null
@@ -124,15 +123,12 @@ object XBackup : ModInitializer {
             }
         }
         if (System.getProperty("xb.restart") == "true") {
-            when (Util.getOperatingSystem()) {
-                Util.OperatingSystem.OSX, Util.OperatingSystem.LINUX -> {
-                    ProcessBuilder(RestartUtils.generateUnixRestartCommand())
-                        .start()
-                }
-
-                else -> {
-                    error("Unsupported operating system")
-                }
+            val os = System.getProperty("os.name", "").lowercase()
+            if (os.contains("mac") || os.contains("nix") || os.contains("nux") || os.contains("aix")) {
+                ProcessBuilder(RestartUtils.generateUnixRestartCommand())
+                    .start()
+            } else {
+                error("Unsupported operating system")
             }
 
             log.info("Restarting...")
@@ -147,20 +143,16 @@ object XBackup : ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register { server ->
             this.server = server
 
-            //? if >= 1.21.11 {
-            /*server.commandManager.parseAndExecute(XBackup.server!!.commandSource, "1")
-            *///?} else {
-            server.commandManager.executeWithPrefix(XBackup.server!!.commandSource, "1")
-            //?}
+            server.commands.performPrefixedCommand(XBackup.server!!.createCommandSourceStack(), "1")
             kotlin.runCatching {
                 // sync client language to the integrated server
-                config.language = I18n.setLanguage(MinecraftClient.getInstance().options.language)
+                config.language = I18n.setLanguage(Minecraft.getInstance().options.languageCode)
             }
             val worldPath = if (config.mirrorMode) {
                 File(config.mirrorFrom!!).toPath().resolve("world")
             }
             else {
-                server.getSavePath(WorldSavePath.ROOT)
+                server.getWorldPath(LevelResource.ROOT)
             }.toAbsolutePath().normalize()
             val database = getDatabaseFromWorld(worldPath)
             if (config.mirrorMode) {
@@ -231,10 +223,10 @@ object XBackup : ModInitializer {
                                 (cs.bytesSentLastSecond > 0 || cs.bytesReceivedLastSecond > 0)
                             ) {
                                 runCatching {
-                                    server.playerManager.sendToAll(
-                                        PlayerListHeaderS2CPacket(
-                                            Text.empty(),
-                                            Text.literal("X Backup Network Stat\n")
+                                    server.playerList.broadcastAll(
+                                        ClientboundTabListPacket(
+                                            Component.empty(),
+                                            Component.literal("X Backup Network Stat\n")
                                                 .append(Commands.networkStatsText())
                                         )
                                     )
@@ -296,7 +288,7 @@ object XBackup : ModInitializer {
                             isBusy = true
                             server.broadcast(Utils.translate("message.xb.running_scheduled_backup"))
                             val (_, _, backId, totalSize, compressedSize, addedSize, millis) = service.createBackup(
-                                server.getSavePath(WorldSavePath.ROOT).toAbsolutePath(),
+                                server.getWorldPath(LevelResource.ROOT).toAbsolutePath(),
                                 I18n["message.xb.scheduled_backup"],
                                 metadata = buildJsonObject {
                                     put("scheduled", true)
@@ -393,12 +385,12 @@ object XBackup : ModInitializer {
 
     fun ensureNotBusy(
         context: CoroutineContext = server!!.asCoroutineDispatcher(),
-        source: ServerCommandSource? = null,
+        source: CommandSourceStack? = null,
         block: suspend () -> Unit
     ) {
-        require(server!!.isOnThread)
+        require(server!!.isSameThread)
         if (isBusy) {
-            throw SimpleCommandExceptionType(Text.of("Backup is already running")).create()
+            throw SimpleCommandExceptionType(Component.literal("Backup is already running")).create()
         }
         isBusy = true
         service.launch(context) {
@@ -407,7 +399,7 @@ object XBackup : ModInitializer {
             }
             catch (e: Throwable) {
                 log.error("Error running X Backup task", e)
-                source?.sendError(Text.of("Error running X Backup task: ${e.message}"))
+                source?.sendFailure(Component.literal("Error running X Backup task: ${e.message}"))
             }
             finally {
                 isBusy = false

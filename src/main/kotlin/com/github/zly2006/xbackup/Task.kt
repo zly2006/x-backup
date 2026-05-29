@@ -1,10 +1,10 @@
 package com.github.zly2006.xbackup
 
-import net.minecraft.text.Text
+import net.minecraft.network.chat.Component
 
 interface Task {
     val name: String
-    val displayName: Text
+    val displayName: Component
     val startedAt: Long
     val finishedAt: Long
     val status: Status
