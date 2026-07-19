@@ -153,14 +153,13 @@ class BackupDatabaseService(
                     1 -> withContext(Dispatchers.IO) {
                         GZIPInputStream(blob.inputStream())
                     }
-                    2 -> ZipInputStream(blob.inputStream()).use {
+                    2 -> ZipInputStream(blob.inputStream()).also {
                         @Suppress("ControlFlowWithEmptyBody")
                         while (it.nextEntry.let { zipEntry ->
                                 if (zipEntry == null) false
                                 else zipEntry.name != path
                             }) {
                         }
-                        it
                     }
 
                     else -> error("Unknown compress type: $compress")
@@ -602,8 +601,7 @@ class BackupDatabaseService(
                 val input = requireNotNull(it.getInputStreamInternal(this)) {
                     "Blob not found for file ${it.path}, hash: ${it.hash}"
                 }
-                input.copyTo(zip)
-                input.close()
+                input.use { s -> s.copyTo(zip) }
             }
         }
         val md5 = MessageDigest.getInstance("MD5").digest(stream.toByteArray())
@@ -656,8 +654,7 @@ class BackupDatabaseService(
                 val input = requireNotNull(it.getInputStream(this)) {
                     "Blob not found for file ${it.path}, hash: ${it.hash}"
                 }
-                input.copyTo(outputStream)
-                input.close()
+                input.use { s -> s.copyTo(outputStream) }
             }
             done++
             activeTaskProgress = 100 * done / backup.entries.size
