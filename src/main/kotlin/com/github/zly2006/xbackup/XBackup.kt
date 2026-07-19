@@ -307,8 +307,16 @@ object XBackup : ModInitializer {
                             val localBackup = File("x_backup.db.back")
                             localBackup.delete()
                             try {
-                                (service.database.connector().connection as? SQLiteConnection)?.createStatement()
-                                    ?.execute("VACUUM INTO '$localBackup';")
+                                val exposedConn = service.database.connector()
+                                try {
+                                    (exposedConn.connection as? SQLiteConnection)?.let { conn ->
+                                        conn.createStatement().use { stmt ->
+                                            stmt.execute("VACUUM INTO '$localBackup';")
+                                        }
+                                    }
+                                } finally {
+                                    exposedConn.close()
+                                }
                             } catch (e: Exception) {
                                 log.error("Error backing up database", e)
                             }
