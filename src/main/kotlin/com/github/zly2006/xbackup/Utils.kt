@@ -50,10 +50,8 @@ object Utils {
     }
 
     fun isFileInWorld(world: ServerWorld, p: Path): Boolean {
-        val path = DimensionType.getSaveDirectory(
-            world.registryKey,
-            world.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath()
-        ).normalize()
-        return p.normalize().startsWith(path)
+        val worldRoot = world.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
+        val worldSaveDir = DimensionType.getSaveDirectory(world.registryKey, worldRoot).normalize()
+        return RegionalRestore.isPathInWorldSave(p, worldSaveDir, isOverworld = worldSaveDir == worldRoot)
     }
 }

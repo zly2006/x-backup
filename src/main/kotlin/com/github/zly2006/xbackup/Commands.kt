@@ -7,6 +7,7 @@ import com.github.zly2006.xbackup.Utils.send
 import com.github.zly2006.xbackup.Utils.setAutoSaving
 import com.github.zly2006.xbackup.api.IBackup
 import com.github.zly2006.xbackup.gui.RestoreInfoScreen
+import com.github.zly2006.xbackup.ktdsl.BuilderScope
 import com.github.zly2006.xbackup.ktdsl.register
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
@@ -32,6 +33,7 @@ import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import net.minecraft.util.Util
 import net.minecraft.util.WorldSavePath
+import net.minecraft.world.dimension.DimensionType
 import java.net.URI
 import java.nio.file.Path
 import java.text.SimpleDateFormat
@@ -400,55 +402,11 @@ object Commands {
                 literal("restore") {
                     requires = checkPermission("x_backup.restore", 0)
                     argument("id", IntegerArgumentType.integer(1)) {
+                        literal("--mca") {
+                            regionalRestoreArgs(RegionalRestoreMode.MCA)
+                        }
                         literal("--chunk") {
-                            requires = checkPermission("x_backup.restore.regional", 4)
-                            argument("from", ColumnPosArgumentType.columnPos()) {
-                                argument("to", ColumnPosArgumentType.columnPos()).executes {
-                                    val id = IntegerArgumentType.getInteger(it, "id")
-                                    val from = ColumnPosArgumentType.getColumnPos(it, "from")
-                                    val to = ColumnPosArgumentType.getColumnPos(it, "to")
-                                    val path =
-                                        it.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
-                                    val world = it.source.world
-                                    val backup = getBackup(id)
-                                    val minX = min(from.x, to.x)
-                                    val maxX = max(from.x, to.x)
-                                    val minZ = min(from.z, to.z)
-                                    val maxZ = max(from.z, to.z)
-                                    XBackup.log.info("[X Backup] Restoring block range: $minX-$minZ, $maxX-$maxZ")
-                                    XBackup.log.info("mca: r.${minX shr 9}.${minZ shr 9}.mca to r.${maxX shr 9}.${maxZ shr 9}.mca")
-                                    XBackup.log.info("mcc: r.${minX shr 4}.${minZ shr 4}.mcc to r.${maxX shr 4}.${maxZ shr 4}.mcc")
-                                    doRestore(backup, it, path, forceStop = true) {
-                                        val p = path.resolve(it).normalize()
-                                        if (!Utils.isFileInWorld(world, p)) {
-                                            XBackup.log.debug("[X Backup] {} is not in world {}, skipping", p, world)
-                                            return@doRestore false
-                                        }
-                                        when (p.extension) {
-                                            "mca" -> {
-                                                val x = p.fileName.toString().split(".")[1].toInt()
-                                                val z = p.fileName.toString().split(".")[2].toInt()
-                                                if (x >= minX shr 9 && x <= maxX shr 9 && z >= minZ shr 9 && z <= maxZ shr 9) {
-                                                    return@doRestore true
-                                                }
-                                                false
-                                            }
-
-                                            "mcc" -> {
-                                                val x = p.fileName.toString().split(".")[1].toInt()
-                                                val z = p.fileName.toString().split(".")[2].toInt()
-                                                if (x >= minX shr 4 && x <= maxX shr 4 && z >= minZ shr 4 && z <= maxZ shr 4) {
-                                                    return@doRestore true
-                                                }
-                                                false
-                                            }
-
-                                            else -> false
-                                        }
-                                    }
-                                    1
-                                }
-                            }
+                            regionalRestoreArgs(RegionalRestoreMode.CHUNK)
                         }
                         literal("--restart").executes {
                             val id = IntegerArgumentType.getInteger(it, "id")
@@ -671,6 +629,220 @@ object Commands {
         }
     }
 
+    private fun BuilderScope<ServerCommandSource>.regionalRestoreArgs(mode: RegionalRestoreMode) {
+        requires = checkPermission("x_backup.restore.regional", 4)
+        argument("from", ColumnPosArgumentType.columnPos()) {
+            argument("to", ColumnPosArgumentType.columnPos()).executes {
+                runRegionalRestore(it, mode, useBlockCoords = false)
+                1
+            }
+        }
+        literal("--block") {
+            argument("from", ColumnPosArgumentType.columnPos()) {
+                argument("to", ColumnPosArgumentType.columnPos()).executes {
+                    runRegionalRestore(it, mode, useBlockCoords = true)
+                    1
+                }
+            }
+        }
+    }
+
+    private fun runRegionalRestore(
+        ctx: CommandContext<ServerCommandSource>,
+        mode: RegionalRestoreMode,
+        useBlockCoords: Boolean,
+    ) {
+        val id = IntegerArgumentType.getInteger(ctx, "id")
+        val from = ColumnPosArgumentType.getColumnPos(ctx, "from")
+        val to = ColumnPosArgumentType.getColumnPos(ctx, "to")
+        val path = ctx.source.server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize()
+        val worldSaveDir = DimensionType.getSaveDirectory(ctx.source.world.registryKey, path).normalize()
+        val isOverworld = worldSaveDir == path
+        val backup = getBackup(id)
+        val range = RegionalRestore.resolveRange(mode, useBlockCoords, from.x, from.z, to.x, to.z)
+        if (useBlockCoords) {
+            val minX = min(from.x, to.x)
+            val maxX = max(from.x, to.x)
+            val minZ = min(from.z, to.z)
+            val maxZ = max(from.z, to.z)
+            when (mode) {
+                RegionalRestoreMode.MCA -> XBackup.log.info(
+                    "[X Backup] Block range ($minX, $minZ)-($maxX, $maxZ) -> MCA r.${range.minX}.${range.minZ}.mca to r.${range.maxX}.${range.maxZ}.mca"
+                )
+                RegionalRestoreMode.CHUNK -> XBackup.log.info(
+                    "[X Backup] Block range ($minX, $minZ)-($maxX, $maxZ) -> chunks (${range.minX}, ${range.minZ}) to (${range.maxX}, ${range.maxZ})"
+                )
+            }
+        }
+        when (mode) {
+            RegionalRestoreMode.MCA -> {
+                XBackup.log.info(
+                    "[X Backup] Regional restore mode: MCA, r.${range.minX}.${range.minZ}.mca to r.${range.maxX}.${range.maxZ}.mca"
+                )
+                logMcaFiles(backup, path, worldSaveDir, isOverworld, range)
+                doRestore(backup, ctx, path, forceStop = true) { relative ->
+                    regionalFileInRange(path, worldSaveDir, isOverworld, relative) { coords, extension ->
+                        when (extension) {
+                            "mca" -> range.contains(coords.first, coords.second)
+                            "mcc" -> range.contains(coords.first shr 5, coords.second shr 5)
+                            else -> false
+                        }
+                    }
+                }
+            }
+            RegionalRestoreMode.CHUNK -> {
+                XBackup.log.info(
+                    "[X Backup] Regional restore mode: CHUNK, (${range.minX}, ${range.minZ}) to (${range.maxX}, ${range.maxZ})"
+                )
+                logMccFiles(backup, path, worldSaveDir, isOverworld, range)
+                doRestore(
+                    backup, ctx, path, forceStop = true,
+                    filter = { relative ->
+                        regionalFileInRange(path, worldSaveDir, isOverworld, relative) { coords, extension ->
+                            extension == "mcc" && range.contains(coords.first, coords.second)
+                        }
+                    },
+                    afterRestore = {
+                        mergeSelectedChunks(backup, path, worldSaveDir, range)
+                    }
+                )
+            }
+        }
+    }
+
+    private fun regionalFileInRange(
+        worldRoot: Path,
+        worldSaveDir: Path,
+        isOverworld: Boolean,
+        relative: Path,
+        predicate: (coords: Pair<Int, Int>, extension: String) -> Boolean,
+    ): Boolean {
+        val absolute = worldRoot.resolve(relative).normalize()
+        if (!RegionalRestore.isPathInWorldSave(absolute, worldSaveDir, isOverworld)) {
+            XBackup.log.debug("[X Backup] {} is not in world {}, skipping", absolute, worldSaveDir)
+            return false
+        }
+        if (!RegionalRestore.isRegionStorageFile(relative)) {
+            return false
+        }
+        val coords = RegionalRestore.parseRegionCoords(absolute.fileName.toString()) ?: return false
+        return predicate(coords, absolute.extension)
+    }
+
+    private fun logMcaFiles(
+        backup: IBackup,
+        worldRoot: Path,
+        worldSaveDir: Path,
+        isOverworld: Boolean,
+        range: RegionalRestore.Range,
+    ) {
+        val backupMca = backup.entries.filter { entry ->
+            if (entry.isDirectory) return@filter false
+            val relative = RegionalRestore.entryPath(entry.path)
+            regionalFileInRange(worldRoot, worldSaveDir, isOverworld, relative) { coords, extension ->
+                extension == "mca" && range.contains(coords.first, coords.second)
+            }
+        }
+        backupMca.forEach { entry ->
+            val relative = dimensionRelative(worldRoot, worldSaveDir, RegionalRestore.entryPath(entry.path))
+            XBackup.log.info("[X Backup] Restoring MCA file: $relative")
+        }
+        val backupPaths = backupMca.map { RegionalRestore.entryPath(it.path) }.toSet()
+        for (dir in RegionalRestore.REGION_DIRS) {
+            val dirPath = worldSaveDir.resolve(dir)
+            if (!dirPath.exists() || !dirPath.isDirectory()) continue
+            dirPath.listDirectoryEntries("*.mca").forEach { file ->
+                val coords = RegionalRestore.parseRegionCoords(file.fileName.toString()) ?: return@forEach
+                if (!range.contains(coords.first, coords.second)) return@forEach
+                val fromRoot = worldRoot.relativize(file).normalize()
+                if (fromRoot !in backupPaths) {
+                    XBackup.log.info("[X Backup] Deleting MCA file: ${dimensionRelative(worldRoot, worldSaveDir, fromRoot)}")
+                }
+            }
+        }
+    }
+
+    private fun logMccFiles(
+        backup: IBackup,
+        worldRoot: Path,
+        worldSaveDir: Path,
+        isOverworld: Boolean,
+        range: RegionalRestore.Range,
+    ) {
+        backup.entries.forEach { entry ->
+            if (entry.isDirectory) return@forEach
+            val relative = RegionalRestore.entryPath(entry.path)
+            if (regionalFileInRange(worldRoot, worldSaveDir, isOverworld, relative) { coords, extension ->
+                    extension == "mcc" && range.contains(coords.first, coords.second)
+                }
+            ) {
+                XBackup.log.info(
+                    "[X Backup] Restoring MCC file: ${dimensionRelative(worldRoot, worldSaveDir, relative)}"
+                )
+            }
+        }
+    }
+
+    private fun mergeSelectedChunks(
+        backup: IBackup,
+        worldRoot: Path,
+        worldSaveDir: Path,
+        range: RegionalRestore.Range,
+    ) {
+        val minRX = range.minX shr 5
+        val maxRX = range.maxX shr 5
+        val minRZ = range.minZ shr 5
+        val maxRZ = range.maxZ shr 5
+        for (dir in RegionalRestore.REGION_DIRS) {
+            for (rx in minRX..maxRX) {
+                for (rz in minRZ..maxRZ) {
+                    val worldFile = worldSaveDir.resolve(dir).resolve("r.$rx.$rz.mca")
+                    val fromRoot = worldRoot.relativize(worldFile).normalize()
+                    val entry = backup.entries.firstOrNull { RegionalRestore.entryPath(it.path) == fromRoot }
+                    var tempBackup: Path? = null
+                    if (entry != null && !entry.isDirectory) {
+                        val tmp = createTempFile("xb-mca-", ".mca")
+                        val input = entry.getInputStream(XBackup.service)
+                        if (input != null) {
+                            input.use { src -> tmp.outputStream().use { dst -> src.copyTo(dst) } }
+                            tempBackup = tmp
+                        } else {
+                            tmp.deleteIfExists()
+                        }
+                    }
+                    try {
+                        if (tempBackup == null && !worldFile.exists()) continue
+                        val logPath = "$dir/r.$rx.$rz.mca"
+                        RegionFileMerger.merge(
+                            current = worldFile.takeIf { it.exists() },
+                            backup = tempBackup,
+                            output = worldFile,
+                            regionX = rx,
+                            regionZ = rz,
+                            minChunkX = range.minX,
+                            maxChunkX = range.maxX,
+                            minChunkZ = range.minZ,
+                            maxChunkZ = range.maxZ,
+                        ) { chunkX, chunkZ, action ->
+                            when (action) {
+                                RegionFileMerger.ChunkAction.RESTORED ->
+                                    XBackup.log.info("[X Backup] Restoring chunk ($chunkX, $chunkZ) from $logPath")
+                                RegionFileMerger.ChunkAction.REMOVED ->
+                                    XBackup.log.info("[X Backup] Removing chunk ($chunkX, $chunkZ) from $logPath")
+                            }
+                        }
+                    } finally {
+                        tempBackup?.deleteIfExists()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun dimensionRelative(worldRoot: Path, worldSaveDir: Path, relativeToRoot: Path): String {
+        return worldSaveDir.relativize(worldRoot.resolve(relativeToRoot).normalize()).normalize().joinToString("/")
+    }
+
     private fun doRestore(
         backup: IBackup,
         it: CommandContext<ServerCommandSource>,
@@ -678,6 +850,7 @@ object Commands {
         forceStop: Boolean = false,
         recheck: Boolean = true,
         filter: (Path) -> Boolean = { true },
+        afterRestore: () -> Unit = {},
     ) {
         val service = XBackup.service
         // Note: on server thread
@@ -711,6 +884,7 @@ object Commands {
                     runBlocking {
                         XBackup.reason = "Restoring backup #${backup.id}"
                         service.restore(backup.id, path.normalize()) { !filter(it) }
+                        afterRestore()
                         XBackup.reason = "Restoring backup #${backup.id} finished, launching/stopping server"
                         if (forceStop) {
                             forceStopServer()
