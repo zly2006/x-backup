@@ -10,8 +10,10 @@ import kotlin.io.path.readBytes
 import kotlin.io.path.writeBytes
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RegionFileMergerTest {
     @get:Rule
@@ -135,6 +137,144 @@ class RegionFileMergerTest {
                 Triple(2, 0, RegionFileMerger.ChunkAction.REMOVED),
             ),
             actions
+        )
+    }
+
+    @Test
+    fun mergeFromBytesRestoresMultipleSelectedChunksInOnePass() {
+        val current = temp.newFile("current-bytes.mca").toPath()
+        val backup = temp.newFile("backup-bytes.mca").toPath()
+        val output = temp.newFile("output-bytes.mca").toPath()
+        writeMca(current, mapOf((0 to 0) to byteArrayOf(1), (1 to 0) to byteArrayOf(2), (3 to 0) to byteArrayOf(4)))
+        writeMca(backup, mapOf((0 to 0) to byteArrayOf(9), (1 to 0) to byteArrayOf(8)))
+        val actions = mutableListOf<Triple<Int, Int, RegionFileMerger.ChunkAction>>()
+
+        RegionFileMerger.merge(
+            current = current,
+            backupBytes = backup.readBytes(),
+            output = output,
+            regionX = 0,
+            regionZ = 0,
+            minChunkX = 0,
+            maxChunkX = 1,
+            minChunkZ = 0,
+            maxChunkZ = 0,
+        ) { x, z, action ->
+            actions += Triple(x, z, action)
+        }
+
+        assertContentEquals(byteArrayOf(9), readMcaChunk(output, 0, 0))
+        assertContentEquals(byteArrayOf(8), readMcaChunk(output, 1, 0))
+        assertContentEquals(byteArrayOf(4), readMcaChunk(output, 3, 0))
+        assertEquals(
+            listOf(
+                Triple(0, 0, RegionFileMerger.ChunkAction.RESTORED),
+                Triple(1, 0, RegionFileMerger.ChunkAction.RESTORED),
+            ),
+            actions
+        )
+    }
+
+    @Test
+    fun truncatedBackupDoesNotModifyWorldFile() {
+        val current = temp.newFile("current-safe.mca").toPath()
+        val output = temp.newFile("output-safe.mca").toPath()
+        writeMca(current, mapOf((0 to 0) to byteArrayOf(1), (1 to 0) to byteArrayOf(2)))
+        output.writeBytes(current.readBytes())
+        val before = output.readBytes()
+
+        assertFailsWith<RegionFileMerger.UnreadableRegionFileException> {
+            RegionFileMerger.merge(
+                current = current,
+                backupBytes = ByteArray(100),
+                output = output,
+                regionX = 0,
+                regionZ = 0,
+                minChunkX = 0,
+                maxChunkX = 0,
+                minChunkZ = 0,
+                maxChunkZ = 0,
+            )
+        }
+
+        assertContentEquals(before, output.readBytes())
+        assertContentEquals(byteArrayOf(1), readMcaChunk(output, 0, 0))
+    }
+
+    @Test
+    fun headerPointingPastEofIsRejected() {
+        val bytes = ByteArray(8192)
+        bytes[2] = 3
+        bytes[3] = 1
+        assertFalse(RegionFileMerger.isIntactMca(bytes))
+    }
+
+    @Test
+    fun emptyHeaderOnlyMcaIsIntact() {
+        assertTrue(RegionFileMerger.isIntactMca(ByteArray(8192)))
+    }
+
+    @Test
+    fun invalidCommitKeepsOriginalAndDeletesTemp() {
+        val output = temp.newFile("commit-safe.mca").toPath()
+        writeMca(output, mapOf((0 to 0) to byteArrayOf(1)))
+        val before = output.readBytes()
+
+        assertFailsWith<RegionFileMerger.UnreadableRegionFileException> {
+            RegionFileMerger.commitReplacing(output, ByteArray(100))
+        }
+
+        assertContentEquals(before, output.readBytes())
+        assertFalse(output.resolveSibling("${output.fileName}.xb-new").exists())
+    }
+
+    @Test
+    fun mergeReplacesViaTempThenAtomicMove() {
+        val current = temp.newFile("current-commit.mca").toPath()
+        val backup = temp.newFile("backup-commit.mca").toPath()
+        val output = temp.newFile("output-commit.mca").toPath()
+        writeMca(current, mapOf((0 to 0) to byteArrayOf(1)))
+        writeMca(backup, mapOf((0 to 0) to byteArrayOf(9)))
+
+        RegionFileMerger.merge(
+            current = current,
+            backup = backup,
+            output = output,
+            regionX = 0,
+            regionZ = 0,
+            minChunkX = 0,
+            maxChunkX = 0,
+            minChunkZ = 0,
+            maxChunkZ = 0,
+        )
+
+        assertContentEquals(byteArrayOf(9), readMcaChunk(output, 0, 0))
+        assertFalse(output.resolveSibling("${output.fileName}.xb-new").exists())
+        assertTrue(RegionFileMerger.isIntactMca(output.readBytes()))
+    }
+
+    @Test
+    fun replaceCommittedFileSwapsTempOverOutput() {
+        val output = temp.newFile("replace-out.mca").toPath()
+        val tmp = output.resolveSibling("${output.fileName}.xb-new")
+        output.writeBytes(byteArrayOf(1, 2, 3))
+        tmp.writeBytes(byteArrayOf(9, 8, 7))
+
+        RegionFileMerger.replaceCommittedFile(tmp, output)
+
+        assertContentEquals(byteArrayOf(9, 8, 7), output.readBytes())
+        assertFalse(tmp.exists())
+    }
+
+    @Test
+    fun combineChunkActionPrefersRestore() {
+        assertEquals(
+            RegionFileMerger.ChunkAction.RESTORED,
+            RegionFileMerger.combineAction(RegionFileMerger.ChunkAction.REMOVED, RegionFileMerger.ChunkAction.RESTORED)
+        )
+        assertEquals(
+            RegionFileMerger.ChunkAction.REMOVED,
+            RegionFileMerger.combineAction(null, RegionFileMerger.ChunkAction.REMOVED)
         )
     }
 

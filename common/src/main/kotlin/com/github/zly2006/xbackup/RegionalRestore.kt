@@ -72,5 +72,39 @@ object RegionalRestore {
 
     fun entryPath(relative: String): Path = Path(relative).normalize()
 
+    data class McaLogPlan(
+        val restore: List<Pair<Int, Int>>,
+        val delete: List<Pair<Int, Int>>,
+    )
+
+    fun regionFileName(regionX: Int, regionZ: Int): String = "r.$regionX.$regionZ.mca"
+
+    fun formatUnitLog(unit: String, x: Int, z: Int, restoring: Boolean): String {
+        val verb = if (restoring) "Restoring" else "Removing"
+        return "[X Backup] $verb $unit ($x, $z)"
+    }
+
+    fun uniqueRegionCoords(paths: Iterable<String>): List<Pair<Int, Int>> {
+        val result = LinkedHashSet<Pair<Int, Int>>()
+        for (path in paths) {
+            val name = path.substringAfterLast('/').substringAfterLast('\\')
+            if (!name.endsWith(".mca")) continue
+            parseRegionCoords(name)?.let { result += it }
+        }
+        return result.toList()
+    }
+
+    fun planMcaLogs(
+        backupMcaPaths: Iterable<String>,
+        worldMcaPaths: Iterable<String>,
+        range: Range,
+    ): McaLogPlan {
+        val restore = uniqueRegionCoords(backupMcaPaths).filter { range.contains(it.first, it.second) }
+        val restoreSet = restore.toSet()
+        val delete = uniqueRegionCoords(worldMcaPaths)
+            .filter { range.contains(it.first, it.second) && it !in restoreSet }
+        return McaLogPlan(restore, delete)
+    }
+
     val REGION_DIRS = setOf("region", "entities", "poi")
 }

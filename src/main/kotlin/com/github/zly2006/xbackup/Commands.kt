@@ -667,7 +667,7 @@ object Commands {
             val maxZ = max(from.z, to.z)
             when (mode) {
                 RegionalRestoreMode.MCA -> XBackup.log.info(
-                    "[X Backup] Block range ($minX, $minZ)-($maxX, $maxZ) -> MCA r.${range.minX}.${range.minZ}.mca to r.${range.maxX}.${range.maxZ}.mca"
+                    "[X Backup] Block range ($minX, $minZ)-($maxX, $maxZ) -> MCA (${range.minX}, ${range.minZ}) to (${range.maxX}, ${range.maxZ})"
                 )
                 RegionalRestoreMode.CHUNK -> XBackup.log.info(
                     "[X Backup] Block range ($minX, $minZ)-($maxX, $maxZ) -> chunks (${range.minX}, ${range.minZ}) to (${range.maxX}, ${range.maxZ})"
@@ -677,7 +677,7 @@ object Commands {
         when (mode) {
             RegionalRestoreMode.MCA -> {
                 XBackup.log.info(
-                    "[X Backup] Regional restore mode: MCA, r.${range.minX}.${range.minZ}.mca to r.${range.maxX}.${range.maxZ}.mca"
+                    "[X Backup] Regional restore mode: MCA, (${range.minX}, ${range.minZ}) to (${range.maxX}, ${range.maxZ})"
                 )
                 logMcaFiles(backup, path, worldSaveDir, isOverworld, range)
                 doRestore(backup, ctx, path, forceStop = true) { relative ->
@@ -694,7 +694,6 @@ object Commands {
                 XBackup.log.info(
                     "[X Backup] Regional restore mode: CHUNK, (${range.minX}, ${range.minZ}) to (${range.maxX}, ${range.maxZ})"
                 )
-                logMccFiles(backup, path, worldSaveDir, isOverworld, range)
                 doRestore(
                     backup, ctx, path, forceStop = true,
                     filter = { relative ->
@@ -736,50 +735,28 @@ object Commands {
         isOverworld: Boolean,
         range: RegionalRestore.Range,
     ) {
-        val backupMca = backup.entries.filter { entry ->
-            if (entry.isDirectory) return@filter false
+        val backupMca = backup.entries.mapNotNull { entry ->
+            if (entry.isDirectory) return@mapNotNull null
             val relative = RegionalRestore.entryPath(entry.path)
-            regionalFileInRange(worldRoot, worldSaveDir, isOverworld, relative) { coords, extension ->
-                extension == "mca" && range.contains(coords.first, coords.second)
-            }
-        }
-        backupMca.forEach { entry ->
-            val relative = dimensionRelative(worldRoot, worldSaveDir, RegionalRestore.entryPath(entry.path))
-            XBackup.log.info("[X Backup] Restoring MCA file: $relative")
-        }
-        val backupPaths = backupMca.map { RegionalRestore.entryPath(it.path) }.toSet()
-        for (dir in RegionalRestore.REGION_DIRS) {
-            val dirPath = worldSaveDir.resolve(dir)
-            if (!dirPath.exists() || !dirPath.isDirectory()) continue
-            dirPath.listDirectoryEntries("*.mca").forEach { file ->
-                val coords = RegionalRestore.parseRegionCoords(file.fileName.toString()) ?: return@forEach
-                if (!range.contains(coords.first, coords.second)) return@forEach
-                val fromRoot = worldRoot.relativize(file).normalize()
-                if (fromRoot !in backupPaths) {
-                    XBackup.log.info("[X Backup] Deleting MCA file: ${dimensionRelative(worldRoot, worldSaveDir, fromRoot)}")
-                }
-            }
-        }
-    }
-
-    private fun logMccFiles(
-        backup: IBackup,
-        worldRoot: Path,
-        worldSaveDir: Path,
-        isOverworld: Boolean,
-        range: RegionalRestore.Range,
-    ) {
-        backup.entries.forEach { entry ->
-            if (entry.isDirectory) return@forEach
-            val relative = RegionalRestore.entryPath(entry.path)
-            if (regionalFileInRange(worldRoot, worldSaveDir, isOverworld, relative) { coords, extension ->
-                    extension == "mcc" && range.contains(coords.first, coords.second)
+            if (!regionalFileInRange(worldRoot, worldSaveDir, isOverworld, relative) { coords, extension ->
+                    extension == "mca" && range.contains(coords.first, coords.second)
                 }
             ) {
-                XBackup.log.info(
-                    "[X Backup] Restoring MCC file: ${dimensionRelative(worldRoot, worldSaveDir, relative)}"
-                )
+                return@mapNotNull null
             }
+            relative.toString()
+        }
+        val worldMca = RegionalRestore.REGION_DIRS.flatMap { dir ->
+            val dirPath = worldSaveDir.resolve(dir)
+            if (!dirPath.exists() || !dirPath.isDirectory()) return@flatMap emptyList()
+            dirPath.listDirectoryEntries("*.mca").map { it.fileName.toString() }
+        }
+        val plan = RegionalRestore.planMcaLogs(backupMca, worldMca, range)
+        for ((x, z) in plan.restore) {
+            XBackup.log.info(RegionalRestore.formatUnitLog("MCA", x, z, restoring = true))
+        }
+        for ((x, z) in plan.delete) {
+            XBackup.log.info(RegionalRestore.formatUnitLog("MCA", x, z, restoring = false))
         }
     }
 
@@ -789,33 +766,42 @@ object Commands {
         worldSaveDir: Path,
         range: RegionalRestore.Range,
     ) {
+        val backupByPath = backup.entries.asSequence()
+            .filter { !it.isDirectory }
+            .associateBy { RegionalRestore.entryPath(it.path) }
         val minRX = range.minX shr 5
         val maxRX = range.maxX shr 5
         val minRZ = range.minZ shr 5
         val maxRZ = range.maxZ shr 5
-        for (dir in RegionalRestore.REGION_DIRS) {
-            for (rx in minRX..maxRX) {
-                for (rz in minRZ..maxRZ) {
-                    val worldFile = worldSaveDir.resolve(dir).resolve("r.$rx.$rz.mca")
+        for (rx in minRX..maxRX) {
+            for (rz in minRZ..maxRZ) {
+                val chunkActions = linkedMapOf<Pair<Int, Int>, RegionFileMerger.ChunkAction>()
+                for (dir in RegionalRestore.REGION_DIRS) {
+                    val worldFile = worldSaveDir.resolve(dir).resolve(RegionalRestore.regionFileName(rx, rz))
                     val fromRoot = worldRoot.relativize(worldFile).normalize()
-                    val entry = backup.entries.firstOrNull { RegionalRestore.entryPath(it.path) == fromRoot }
-                    var tempBackup: Path? = null
-                    if (entry != null && !entry.isDirectory) {
-                        val tmp = createTempFile("xb-mca-", ".mca")
-                        val input = entry.getInputStream(XBackup.service)
-                        if (input != null) {
-                            input.use { src -> tmp.outputStream().use { dst -> src.copyTo(dst) } }
-                            tempBackup = tmp
-                        } else {
-                            tmp.deleteIfExists()
+                    val entry = backupByPath[fromRoot]
+                    val backupBytes = if (entry == null) {
+                        null
+                    } else {
+                        val bytes = entry.getInputStream(XBackup.service)?.use { it.readBytes() }
+                        if (bytes == null) {
+                            val message = "[X Backup] Failed to read backup ${entry.path}"
+                            XBackup.log.error(message)
+                            throw IllegalStateException(message)
                         }
+                        if (bytes.size.toLong() != entry.size) {
+                            val message =
+                                "[X Backup] Backup ${entry.path} size mismatch: ${bytes.size} != ${entry.size}"
+                            XBackup.log.error(message)
+                            throw IllegalStateException(message)
+                        }
+                        bytes
                     }
+                    if (backupBytes == null && !worldFile.exists()) continue
                     try {
-                        if (tempBackup == null && !worldFile.exists()) continue
-                        val logPath = "$dir/r.$rx.$rz.mca"
                         RegionFileMerger.merge(
                             current = worldFile.takeIf { it.exists() },
-                            backup = tempBackup,
+                            backupBytes = backupBytes,
                             output = worldFile,
                             regionX = rx,
                             regionZ = rz,
@@ -824,23 +810,27 @@ object Commands {
                             minChunkZ = range.minZ,
                             maxChunkZ = range.maxZ,
                         ) { chunkX, chunkZ, action ->
-                            when (action) {
-                                RegionFileMerger.ChunkAction.RESTORED ->
-                                    XBackup.log.info("[X Backup] Restoring chunk ($chunkX, $chunkZ) from $logPath")
-                                RegionFileMerger.ChunkAction.REMOVED ->
-                                    XBackup.log.info("[X Backup] Removing chunk ($chunkX, $chunkZ) from $logPath")
-                            }
+                            val key = chunkX to chunkZ
+                            chunkActions[key] = RegionFileMerger.combineAction(chunkActions[key], action)
                         }
-                    } finally {
-                        tempBackup?.deleteIfExists()
+                    } catch (e: RegionFileMerger.UnreadableRegionFileException) {
+                        val message = "[X Backup] Refusing to merge $fromRoot: ${e.message}"
+                        XBackup.log.error(message, e)
+                        throw IllegalStateException(message, e)
                     }
+                }
+                for ((coord, action) in chunkActions) {
+                    XBackup.log.info(
+                        RegionalRestore.formatUnitLog(
+                            "chunk",
+                            coord.first,
+                            coord.second,
+                            restoring = action == RegionFileMerger.ChunkAction.RESTORED,
+                        )
+                    )
                 }
             }
         }
-    }
-
-    private fun dimensionRelative(worldRoot: Path, worldSaveDir: Path, relativeToRoot: Path): String {
-        return worldSaveDir.relativize(worldRoot.resolve(relativeToRoot).normalize()).normalize().joinToString("/")
     }
 
     private fun doRestore(
@@ -849,8 +839,8 @@ object Commands {
         path: Path,
         forceStop: Boolean = false,
         recheck: Boolean = true,
-        filter: (Path) -> Boolean = { true },
         afterRestore: () -> Unit = {},
+        filter: (Path) -> Boolean = { true },
     ) {
         val service = XBackup.service
         // Note: on server thread

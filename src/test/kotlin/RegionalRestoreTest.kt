@@ -70,4 +70,50 @@ class RegionalRestoreTest {
         assertEquals(3 to 4, RegionalRestore.parseRegionCoords("c.3.4.mcc"))
         assertEquals(null, RegionalRestore.parseRegionCoords("level.dat"))
     }
+
+    @Test
+    fun planMcaLogsDeduplicatesRegionEntitiesAndPoi() {
+        val range = RegionalRestore.Range(0, 0, 1, 0)
+        val plan = RegionalRestore.planMcaLogs(
+            backupMcaPaths = listOf(
+                "region/r.0.0.mca",
+                "entities/r.0.0.mca",
+                "poi/r.0.0.mca",
+                "region/r.1.0.mca",
+            ),
+            worldMcaPaths = listOf(
+                "region/r.0.0.mca",
+                "entities/r.2.0.mca",
+                "poi/r.2.0.mca",
+                "region/r.1.0.mca",
+            ),
+            range = range,
+        )
+        assertEquals(listOf(0 to 0, 1 to 0), plan.restore)
+        assertEquals(emptyList(), plan.delete)
+    }
+
+    @Test
+    fun unitLogMatchesChunkStyle() {
+        assertEquals("[X Backup] Restoring MCA (0, 0)", RegionalRestore.formatUnitLog("MCA", 0, 0, true))
+        assertEquals("[X Backup] Removing MCA (1, 2)", RegionalRestore.formatUnitLog("MCA", 1, 2, false))
+        assertEquals("[X Backup] Restoring chunk (3, 4)", RegionalRestore.formatUnitLog("chunk", 3, 4, true))
+        assertEquals("[X Backup] Removing chunk (5, 6)", RegionalRestore.formatUnitLog("chunk", 5, 6, false))
+    }
+
+    @Test
+    fun planMcaLogsDeletesMissingBackupOnce() {
+        val range = RegionalRestore.Range(0, 0, 2, 0)
+        val plan = RegionalRestore.planMcaLogs(
+            backupMcaPaths = listOf("region/r.0.0.mca"),
+            worldMcaPaths = listOf(
+                "region/r.1.0.mca",
+                "entities/r.1.0.mca",
+                "poi/r.1.0.mca",
+            ),
+            range = range,
+        )
+        assertEquals(listOf(0 to 0), plan.restore)
+        assertEquals(listOf(1 to 0), plan.delete)
+    }
 }
