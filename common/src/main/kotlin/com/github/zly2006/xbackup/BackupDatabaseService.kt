@@ -14,6 +14,7 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -61,6 +62,7 @@ class BackupDatabaseService(
                 BackupEntryBackupTable,
                 withLogs = false
             )
+            ensureBlobRefTable()
         }
     }
 
@@ -118,6 +120,12 @@ class BackupDatabaseService(
         val entry = reference("entry", BackupEntryTable, ReferenceOption.CASCADE).index()
     }
 
+    object BlobRefTable : Table("blob_refs") {
+        val hash = varchar("hash", 255)
+        val refCount = integer("ref_count")
+        override val primaryKey = PrimaryKey(hash)
+    }
+
     @Serializable
     data class BackupEntry(
         override val id: Int,
@@ -145,6 +153,10 @@ class BackupDatabaseService(
         suspend fun getInputStreamInternal(service: BackupDatabaseService): InputStream? {
             val blob = service.getBlobFile(hash)
             if (!blob.exists()) {
+                if (hash == EMPTY_BLOB_HASH) {
+                    service.ensureEmptyBlobExists()
+                    return ByteArrayInputStream(ByteArray(0))
+                }
                 return null
             }
             try {
@@ -378,6 +390,7 @@ class BackupDatabaseService(
                     it[this.backup] = backup.id
                     it[this.entry] = entry.id
                 }
+                incrementBlobRef(entry.hash)
             }
             // recheck
             val entryList = backup.entries.filter {
@@ -408,12 +421,12 @@ class BackupDatabaseService(
     suspend fun deleteBackupInternal(backup: IBackup) {
         syncDbQuery {
             backup.entries.forEach { entry ->
+                decrementBlobRef(entry.hash)
                 if (BackupEntryBackupTable.selectAll().where {
                         BackupEntryBackupTable.entry eq entry.id and
                                 (BackupEntryBackupTable.backup neq backup.id)
                     }.empty()
                 ) {
-                    getBlobFile(entry.hash).toFile().delete()
                     BackupEntryTable.deleteWhere {
                         id eq entry.id
                     }
@@ -567,9 +580,12 @@ class BackupDatabaseService(
     override fun check(backup: IBackup): Boolean {
         var valid = true
         backup.entries.forEach {
-            val blobFile = getBlobFile(it.hash)
             if (it.isDirectory) return@forEach
-            else if (!blobFile.exists()) {
+            if (it.hash == EMPTY_BLOB_HASH) {
+                ensureEmptyBlobExists()
+            }
+            val blobFile = getBlobFile(it.hash)
+            if (!blobFile.exists()) {
                 log.error("Blob not found for file ${it.path}, hash: ${it.hash}")
                 valid = false
             }
@@ -701,13 +717,11 @@ class BackupDatabaseService(
 
     suspend fun deleteUnusedBlobs(): Int {
         val used = dbQuery {
-            val column = Substring(BackupEntryTable.hash, intLiteral(3), intLiteral(30))
-            BackupEntryTable.select(
-                column // 32 -2 = 30
-            ).withDistinct(true).map { row -> row[column] }
-        }.toSet()
+            BlobRefTable.selectAll().map { row -> row[BlobRefTable.hash].drop(2) }.toSet()
+        }
+        val emptyBlobName = EMPTY_BLOB_HASH.drop(2)
         val unused = getBlobFile("").toFile().walk().filter { it.isFile }.filterNot {
-            it.name in used
+            it.name == emptyBlobName || it.name in used
         }.toList()
         log.info("Deleting ${unused.size} unused blobs")
         unused.forEach {
@@ -746,7 +760,83 @@ class BackupDatabaseService(
         TransactionManager.closeAndUnregister(database)
     }
 
+    private fun Transaction.blobRefsTableExists(): Boolean {
+        return exec("SELECT 1 FROM sqlite_master WHERE type='table' AND name='blob_refs'") { rs ->
+            rs.next()
+        } == true
+    }
+
+    private fun Transaction.ensureBlobRefTable() {
+        if (blobRefsTableExists()) {
+            return
+        }
+        SchemaUtils.create(BlobRefTable)
+        val countCol = BackupEntryBackupTable.id.count()
+        (BackupEntryBackupTable innerJoin BackupEntryTable)
+            .select(BackupEntryTable.hash, countCol)
+            .where {
+                (BackupEntryTable.hash neq "") and (BackupEntryTable.hash neq EMPTY_BLOB_HASH)
+            }
+            .groupBy(BackupEntryTable.hash)
+            .forEach { row ->
+                BlobRefTable.insert {
+                    it[hash] = row[BackupEntryTable.hash]
+                    it[refCount] = row[countCol].toInt()
+                }
+            }
+        log.info("Initialized blob_refs from existing backups")
+    }
+
+    private fun Transaction.tracksBlobRef(hash: String): Boolean {
+        return hash.isNotEmpty() && hash != EMPTY_BLOB_HASH
+    }
+
+    private fun Transaction.incrementBlobRef(hash: String) {
+        if (!tracksBlobRef(hash)) return
+        val existing = BlobRefTable.selectAll().where { BlobRefTable.hash eq hash }.firstOrNull()
+        if (existing == null) {
+            BlobRefTable.insert {
+                it[this.hash] = hash
+                it[refCount] = 1
+            }
+        } else {
+            val next = existing[BlobRefTable.refCount] + 1
+            BlobRefTable.update({ BlobRefTable.hash eq hash }) {
+                it[refCount] = next
+            }
+        }
+    }
+
+    private fun Transaction.decrementBlobRef(hash: String) {
+        if (!tracksBlobRef(hash)) return
+        val existing = BlobRefTable.selectAll().where { BlobRefTable.hash eq hash }.firstOrNull() ?: return
+        val next = existing[BlobRefTable.refCount] - 1
+        if (next <= 0) {
+            getBlobFile(hash).toFile().delete()
+            BlobRefTable.deleteWhere { BlobRefTable.hash eq hash }
+        } else {
+            BlobRefTable.update({ BlobRefTable.hash eq hash }) {
+                it[refCount] = next
+            }
+        }
+    }
+
+    internal fun ensureEmptyBlobExists() {
+        val blob = getBlobFile(EMPTY_BLOB_HASH)
+        if (!blob.exists()) {
+            blob.createParentDirectories()
+            blob.writeBytes(ByteArray(0))
+        }
+    }
+
+    internal fun blobRefCount(hash: String): Int? = transaction {
+        BlobRefTable.selectAll().where { BlobRefTable.hash eq hash }
+            .firstOrNull()?.get(BlobRefTable.refCount)
+    }
+
     companion object {
+        const val EMPTY_BLOB_HASH = "d41d8cd98f00b204e9800998ecf8427e"
+
         private fun ResultRow.toBackup(): Backup {
             val id = this[BackupTable.id].value
             val entries = BackupEntryBackupTable.select(BackupEntryBackupTable.entry).where {
