@@ -9,7 +9,7 @@ The advanced backup mod for fabric.
 - ⚡️Lightning-Fast Speeds: Utilizes multithreading technology for rapid backup processes, completing tasks in a fraction of the time, **speeding up to 50 times faster**. [^1]
 - 💾Space-Efficient: Implements incremental backups and automatically compresses large files, minimizing storage usage.
 - 🔄Seamless Restoring: Automatically restarts the server after restoring, allowing for a seamless experience.
-- ✨Regional Restoring: Restore only the chunks within a specified range, **Players outside the range will not be affected**.
+- ✨Regional Restoring: Restore a region file (`--mca`) or only the selected chunks (`--chunk`). **Players outside the restored range will not be affected**.
 - 🛡️Flexible Support: Designed to support both servers and clients, providing a versatile solution for all your backup needs.
 - ☁️Automatic Cloud Backup: Effortlessly back up your data to the cloud, with support for Microsoft OneDrive, ensuring your information is safe and accessible from anywhere.
 
@@ -43,16 +43,34 @@ If you want to restore to a specific backup, you can use the `/xb restore <id>` 
 /xb restore 1
 ```
 
-This command restores the game to the state of backup number 1. If you want to restore a specific range, you can use the `--chunk` parameter to specify the coordinates from which to which, for example:
+This command restores the game to the state of backup number 1.
+
+To restore only part of the current dimension, use `--mca` (whole region files) or `--chunk` (individual chunks). Coordinates default to MCA region indices or chunk indices. Add `--block` if you want to pass block X/Z coordinates instead.
+
+```
+/xb restore 1 --mca 0 0 0 0
+```
+
+This restores only `r.0.0.mca` in the current dimension.
 
 ```
 /xb restore 1 --chunk 0 0 10 10
 ```
 
-> [!TIP]
-> These are the x/z coordinates of the blocks, do not confuse them with chunk coordinates.
+This restores chunks (0, 0) through (10, 10). Chunks outside that range are left unchanged.
 
-This will restore the game to backup 1, but only restore the area from block coordinates (0, 0) to (10, 10).
+```
+/xb restore 1 --mca --block 0 0 10 10
+```
+
+This treats the numbers as block coordinates, converts them to MCA region files, then restores those files.
+
+```
+/xb restore 1 --chunk --block 0 0 10 10
+```
+
+This treats the numbers as block coordinates, converts them to chunk coordinates, then restores only those chunks.
+
 ### Scheduled Backup Configuration
 
 You can set the automatic backup interval using the `/xb backup-interval <seconds>` command. For example, if you want to automatically back up every 3 hours, you can set it like this:
